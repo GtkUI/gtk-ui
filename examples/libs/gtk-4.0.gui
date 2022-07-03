@@ -1,4 +1,4 @@
 @GtkWindow {
   @Class("GtkWindow") // Optional
-  @Prop("title")
+  @ChildProp("title")
 }
