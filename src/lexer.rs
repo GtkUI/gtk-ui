@@ -1,3 +1,4 @@
+macro_rules! type_range{() => {'a'..='z' | 'A'..='Z'}}
 macro_rules! name_range{() => {'a'..='z' | 'A'..='Z' | '-' | '_'}}
 
 #[derive(Debug)]
@@ -17,13 +18,26 @@ pub enum Directive {
 }
 
 #[derive(Debug)]
+pub enum TypeIdentifier {
+    String,
+    Number,
+    Bool
+}
+
+#[derive(Debug)]
+pub enum Identifier {
+    Generic(String),
+    Type(TypeIdentifier)
+}
+
+#[derive(Debug)]
 pub enum Token {
     String(String),             // "mystring"
     Number(i32),                // 0123456789
     Definition(Definition),     // @mydefinition
     Directive(Directive),       // #mydirective
     Setter(String),             // .mysetter
-    Identifier(String),         // anything else
+    Identifier(Identifier),     // anything else
     StartBlock,                 // { 
     EndBlock,                   // }
     StartArgList,               // (
@@ -152,7 +166,14 @@ fn lex_identifier(input: &String, index: &mut usize) -> Token {
         }
     }
 
-    Token::Identifier(identifier)
+    Token::Identifier(
+        match identifier.as_str() {
+            "String" => Identifier::Type(TypeIdentifier::String),
+            "Number" => Identifier::Type(TypeIdentifier::Number),
+            "Bool"   => Identifier::Type(TypeIdentifier::Bool),
+            _        => Identifier::Generic(identifier)
+        }
+    )
 }
 
 fn lex_setter(input: &String, index: &mut usize) -> Token {
