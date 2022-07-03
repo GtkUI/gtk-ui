@@ -29,6 +29,7 @@ enum Token {
     EndBlock,                   // }
     StartArgList,               // (
     EndArgList,                 // )
+    ArgListDeliminator,         // ,
 }
 
 fn is_whitespace(c: char) -> bool {
@@ -37,15 +38,15 @@ fn is_whitespace(c: char) -> bool {
 
 fn string_to_definition(definition: &str) -> Token {
     Token::Definition(
-        if definition == "@InlineProp" {
+        if definition == "InlineProp" {
             Definition::InlineProp
-        } else if definition == "@InlineArg" {
+        } else if definition == "InlineArg" {
             Definition::InlineArg
-        } else if definition == "@ChildProp" {
+        } else if definition == "ChildProp" {
             Definition::ChildProp
-        } else if definition == "@ChildArg" {
+        } else if definition == "ChildArg" {
             Definition::ChildArg
-        } else if definition == "@Class" {
+        } else if definition == "Class" {
             Definition::Class
         } else {
             Definition::Object(String::from(definition))
@@ -176,7 +177,10 @@ fn lex(input: &String) -> Vec<Token> {
                 },
                 '{' => Token::StartBlock,
                 '}' => Token::EndBlock,
-               _ => Token::Number(-1),
+                ',' => Token::ArgListDeliminator,
+                '(' => Token::StartArgList,
+                ')' => Token::EndArgList,
+                _ => Token::Number(-1),
             })
         } else {
             break;
