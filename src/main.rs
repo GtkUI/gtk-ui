@@ -2,6 +2,8 @@ use std::fs;
 use std::env;
 use std::process;
 
+macro_rules! name_range{() => {'a'..='z' | 'A'..='Z' | '-' | '_'}}
+
 #[derive(Debug)]
 enum Definition {
     InlineProp,
@@ -20,10 +22,12 @@ enum Directive {
 
 #[derive(Debug)]
 enum Token {
-    String(String),             // "..."
+    String(String),             // "mystring"
     Number(i32),                // 0123456789
-    Definition(Definition),           // @...
-    Directive(Directive),       // #...
+    Definition(Definition),     // @mydefinition
+    Directive(Directive),       // #mydirective
+    Setter(String),             // .mysetter
+    Identifier(String),         // anything else
     StartBlock,                 // { 
     EndBlock,                   // }
     StartArgList,               // (
@@ -71,7 +75,7 @@ fn lex_definition(input: &String, index: &mut usize) -> Token {
     *index += 1;
     for c in input[*index..].chars() {
         match c {
-            'a'..='z' | 'A'..='Z' | '-' | '_' => {
+            name_range!() => {
                 definition.push(c);
                 *index += 1;
             },
@@ -87,7 +91,7 @@ fn lex_directive(input: &String, index: &mut usize) -> Token {
     *index += 1;
     for c in input[*index..].chars() {
         match c {
-            'a'..='z' | 'A'..='Z' | '-' | '_' => {
+            name_range!() => {
                 directive.push(c);
                 *index += 1;
             },
@@ -140,6 +144,37 @@ fn lex_number(input: &String, index: &mut usize) -> Token {
     }
 }
 
+fn lex_identifier(input: &String, index: &mut usize) -> Token {
+    let mut identifier = String::new();
+    for c in input[*index..].chars() {
+        match c {
+            name_range!() => {
+                *index += 1;
+                identifier.push(c);
+            },
+            _ => break
+        }
+    }
+
+    Token::Identifier(identifier)
+}
+
+fn lex_setter(input: &String, index: &mut usize) -> Token {
+    let mut setter = String::new();
+    *index += 1;
+    for c in input[*index..].chars() {
+        match c {
+            name_range!() => {
+                setter.push(c);
+                *index += 1;
+            },
+            _ => break
+        }
+    }
+
+    Token::Setter(setter)
+}
+
 fn process_comment(input: &String, index: &mut usize) -> bool {
     for c in input[*index..].chars() {
         *index += 1;
@@ -166,7 +201,9 @@ fn lex(input: &String) -> Vec<Token> {
                 '@' => lex_definition(&input, &mut index),
                 '#' => lex_directive(&input, &mut index),
                 '"' => lex_string(&input, &mut index),
+                '.' => lex_setter(&input, &mut index),
                 '0'..='9' => lex_number(&input, &mut index),
+                name_range!() => lex_identifier(&input, &mut index),
                 '/' => {
                     if process_comment(&input, &mut index) {
                         continue
