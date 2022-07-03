@@ -57,9 +57,9 @@ fn string_to_definition(definition: &str) -> Token {
 fn string_to_directive(directive: &str) -> Result<Token, &'static str> {
     let directive_type: Option<Directive>;
 
-    if directive == "#include" {
+    if directive == "include" {
         directive_type = Some(Directive::Include);
-    } else if directive == "#header" {
+    } else if directive == "header" {
         directive_type = Some(Directive::Header);
     } else {
         directive_type = None;
@@ -89,6 +89,7 @@ fn lex_definition(input: &String, index: &mut usize) -> Token {
 
 fn lex_directive(input: &String, index: &mut usize) -> Token {
     let mut directive = String::new();
+    *index += 1;
     for c in input[*index..].chars() {
         if is_whitespace(c) {
             break
