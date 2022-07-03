@@ -4,8 +4,11 @@ use std::process;
 
 #[derive(Debug)]
 enum Definition {
-    Prop,
-    Arg,
+    InlineProp,
+    InlineArg,
+    ChildProp,
+    ChildArg,
+    Class,
     Object(String)
 }
 
@@ -19,13 +22,13 @@ enum Directive {
 enum Token {
     String(String),             // "..."
     Number(i32),                // 0123456789
-    Identifier(String),         // everything not mentioned
+    Identifier(String),         // everything not mentioned, NOTE: could totally end up not being used. Syntax is a little iffy rn
     Definition(Definition),           // @...
     Directive(Directive),       // #...
     StartBlock,                 // { 
     EndBlock,                   // }
     StartArgList,               // (
-    EndArgList                  // )
+    EndArgList,                 // )
 }
 
 fn is_whitespace(c: char) -> bool {
@@ -34,10 +37,16 @@ fn is_whitespace(c: char) -> bool {
 
 fn string_to_definition(definition: &str) -> Token {
     Token::Definition(
-        if definition == "@prop" {
-            Definition::Prop
-        } else if definition == "@arg" {
-            Definition::Arg
+        if definition == "@InlineProp" {
+            Definition::InlineProp
+        } else if definition == "@InlineArg" {
+            Definition::InlineArg
+        } else if definition == "@ChildProp" {
+            Definition::ChildProp
+        } else if definition == "@ChildArg" {
+            Definition::ChildArg
+        } else if definition == "@Class" {
+            Definition::Class
         } else {
             Definition::Object(String::from(definition))
         }
@@ -63,12 +72,15 @@ fn string_to_directive(directive: &str) -> Result<Token, &'static str> {
 
 fn lex_definition(input: &String, index: &mut usize) -> Token {
     let mut definition = String::new();
+    *index += 1;
     for c in input[*index..].chars() {
-        if is_whitespace(c) {
-            break
+        match c {
+            'a'..='z' | 'A'..='Z' | '-' | '_' => {
+                definition.push(c);
+                *index += 1;
+            },
+            _ => break
         }
-        definition.push(c);
-        *index += 1;
     }
 
     string_to_definition(&definition)
@@ -104,8 +116,8 @@ fn lex_string(input: &String, index: &mut usize) -> Token {
                 panic!("unexpected end of string");
             },
             _ => {
-                string.push(c);
                 *index += 1;
+                string.push(c);
             }
         }
     }
@@ -129,6 +141,17 @@ fn lex_number(input: &String, index: &mut usize) -> Token {
     }
 }
 
+fn process_comment(input: &String, index: &mut usize) -> bool {
+    for c in input[*index..].chars() {
+        *index += 1;
+        if c == '\n' {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 fn lex(input: &String) -> Vec<Token> {
     let mut tokens: Vec<Token> = Vec::new();
     let mut index = 0;
@@ -144,7 +167,16 @@ fn lex(input: &String) -> Vec<Token> {
                     index += 1;
                     continue
                 },
-                _ => Token::Number(-1),
+                '/' => {
+                    if process_comment(&input, &mut index) {
+                        continue
+                    } else {
+                        panic!("Unexpected token '/'");
+                    }
+                },
+                '{' => Token::StartBlock,
+                '}' => Token::EndBlock,
+               _ => Token::Number(-1),
             })
         } else {
             break;
