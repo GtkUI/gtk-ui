@@ -108,7 +108,7 @@ fn lex_string(input: &String, index: &mut usize) -> Token {
     for c in input[(*index + 1)..].chars() {
         match c {
             '"' => {
-                *index += 1;
+                *index += 2;
                 break
             },
             '\n' => {
@@ -151,6 +151,11 @@ fn process_comment(input: &String, index: &mut usize) -> bool {
     return false;
 }
 
+fn add_and_move(token: Token, index: &mut usize) -> Token {
+    *index += 1;
+    token
+}
+
 fn lex(input: &String) -> Vec<Token> {
     let mut tokens: Vec<Token> = Vec::new();
     let mut index = 0;
@@ -162,10 +167,6 @@ fn lex(input: &String) -> Vec<Token> {
                 '#' => lex_directive(&input, &mut index),
                 '"' => lex_string(&input, &mut index),
                 '0'..='9' => lex_number(&input, &mut index),
-                ' ' | '\n' => {
-                    index += 1;
-                    continue
-                },
                 '/' => {
                     if process_comment(&input, &mut index) {
                         continue
@@ -173,17 +174,20 @@ fn lex(input: &String) -> Vec<Token> {
                         panic!("Unexpected token '/'");
                     }
                 },
-                '{' => Token::StartBlock,
-                '}' => Token::EndBlock,
-                ',' => Token::ArgListDeliminator,
-                '(' => Token::StartArgList,
-                ')' => Token::EndArgList,
+                '{' => add_and_move(Token::StartBlock, &mut index),
+                '}' => add_and_move(Token::EndBlock, &mut index),
+                ',' => add_and_move(Token::ArgListDeliminator, &mut index),
+                '(' => add_and_move(Token::StartArgList, &mut index),
+                ')' => add_and_move(Token::EndArgList, &mut index),
+                ' ' | '\n' => {
+                    index += 1;
+                    continue
+                },
                 _ => Token::Number(-1),
             })
         } else {
             break;
         }
-        index += 1;
     }
     tokens
 }
