@@ -22,7 +22,6 @@ enum Directive {
 enum Token {
     String(String),             // "..."
     Number(i32),                // 0123456789
-    Identifier(String),         // everything not mentioned, NOTE: could totally end up not being used. Syntax is a little iffy rn
     Definition(Definition),           // @...
     Directive(Directive),       // #...
     StartBlock,                 // { 
@@ -30,10 +29,6 @@ enum Token {
     StartArgList,               // (
     EndArgList,                 // )
     ArgListDeliminator,         // ,
-}
-
-fn is_whitespace(c: char) -> bool {
-    c == ' ' || c == '\n'
 }
 
 fn string_to_definition(definition: &str) -> Token {
