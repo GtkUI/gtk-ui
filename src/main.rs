@@ -91,11 +91,13 @@ fn lex_directive(input: &String, index: &mut usize) -> Token {
     let mut directive = String::new();
     *index += 1;
     for c in input[*index..].chars() {
-        if is_whitespace(c) {
-            break
+        match c {
+            'a'..='z' | 'A'..='Z' | '-' | '_' => {
+                directive.push(c);
+                *index += 1;
+            },
+            _ => break
         }
-        directive.push(c);
-        *index += 1;
     }
 
     let parsed_directive = string_to_directive(&directive);
