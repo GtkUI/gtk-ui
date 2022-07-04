@@ -1,4 +1,17 @@
 @GtkWindow {
-  @Class("GtkWindow") // Optional
-  @ChildProp("title")
+  @ChildProp("title", String)
+  @InlineProp("id", String)
+}
+
+@GtkBox {
+  @ChildProp("homogeneous", Bool)
+  @ChildProp("visible", Bool)
+}
+
+@GtkLabel {
+  @ChildArg("title", String)
+  @ChildProp("visible", bool)
+  @ChildProp("align", String)
+  @ChildProp("margin-top", Number)
+  @ChildProp("margin-bottom", Number)
 }
