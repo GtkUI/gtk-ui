@@ -6,7 +6,7 @@ mod lexer;
 mod parser;
 
 use lexer::{lex};
-use parser::{parse};
+use parser::{parse, ParsingResult};
 
 
 fn print_help() {
@@ -41,5 +41,9 @@ fn main() {
     println!("Unlexed Chars: {}/{} ({:.3}%)", unparsed_chars, file_content.len(), (unparsed_chars as f32)/(file_content.len() as f32)*100.0);
     */
     println!("Parsing...");
-    parse(&tokens);
+    let mut result = ParsingResult {
+        definitions: Vec::new(),
+        headers: Vec::new()
+    };
+    parse(&tokens, &mut result);
 }
