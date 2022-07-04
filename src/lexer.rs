@@ -1,4 +1,3 @@
-macro_rules! type_range{() => {'a'..='z' | 'A'..='Z'}}
 macro_rules! name_range{() => {'a'..='z' | 'A'..='Z' | '-' | '_'}}
 
 #[derive(Debug)]
@@ -7,7 +6,6 @@ pub enum Definition {
     InlineArg,
     ChildProp,
     ChildArg,
-    Class,
     Object(String)
 }
 
@@ -16,8 +14,7 @@ pub enum Directive {
     Include,
     Header
 }
-
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum TypeIdentifier {
     String,
     Number,
@@ -34,6 +31,7 @@ pub enum Identifier {
 pub enum Token {
     String(String),             // "mystring"
     Number(i32),                // 0123456789
+    Bool(i32),                   // true, false
     Definition(Definition),     // @mydefinition
     Directive(Directive),       // #mydirective
     Setter(String),             // .mysetter
@@ -43,6 +41,23 @@ pub enum Token {
     StartArgList,               // (
     EndArgList,                 // )
     ArgListDeliminator,         // ,
+}
+
+pub fn token_to_string(token: &Token) -> &str {
+    match token {
+        Token::String(_) => "string",
+        Token::Number(_) => "number",
+        Token::Bool(_) => "boolean",
+        Token::Definition(_) => "definition",
+        Token::Directive(_) => "directive",
+        Token::Setter(_) => "setter",
+        Token::Identifier(_) => "identifier",
+        Token::StartBlock => "{",
+        Token::EndBlock => "}",
+        Token::StartArgList => "(",
+        Token::EndArgList => ")",
+        Token::ArgListDeliminator => ","
+    }
 }
 
 fn string_to_definition(definition: &str) -> Token {
@@ -55,8 +70,6 @@ fn string_to_definition(definition: &str) -> Token {
             Definition::ChildProp
         } else if definition == "ChildArg" {
             Definition::ChildArg
-        } else if definition == "Class" {
-            Definition::Class
         } else {
             Definition::Object(String::from(definition))
         }
@@ -154,6 +167,8 @@ fn lex_number(input: &String, index: &mut usize) -> Token {
     }
 }
 
+
+// TODO: RENAME THIS FUNCTION. Parsing booleans... in the identifier function. Gotta change that 
 fn lex_identifier(input: &String, index: &mut usize) -> Token {
     let mut identifier = String::new();
     for c in input[*index..].chars() {
@@ -166,14 +181,14 @@ fn lex_identifier(input: &String, index: &mut usize) -> Token {
         }
     }
 
-    Token::Identifier(
-        match identifier.as_str() {
-            "String" => Identifier::Type(TypeIdentifier::String),
-            "Number" => Identifier::Type(TypeIdentifier::Number),
-            "Bool"   => Identifier::Type(TypeIdentifier::Bool),
-            _        => Identifier::Generic(identifier)
-        }
-    )
+    match identifier.as_str() {
+        "true"   => Token::Bool(1),
+        "false"  => Token::Bool(0),
+        "String" => Token::Identifier(Identifier::Type(TypeIdentifier::String)),
+        "Number" => Token::Identifier(Identifier::Type(TypeIdentifier::Number)),
+        "Bool"   => Token::Identifier(Identifier::Type(TypeIdentifier::Bool)),
+        _        => Token::Identifier(Identifier::Generic(identifier))
+    }
 }
 
 fn lex_setter(input: &String, index: &mut usize) -> Token {
@@ -215,27 +230,27 @@ pub fn lex(input: &String) -> Vec<Token> {
         let input_char = input.chars().nth(index);
         if let Some(c) = input_char {
             tokens.push(match c {
-                '@' => lex_definition(&input, &mut index),
-                '#' => lex_directive(&input, &mut index),
-                '"' => lex_string(&input, &mut index),
-                '.' => lex_setter(&input, &mut index),
-                '0'..='9' => lex_number(&input, &mut index),
+                '@'           => lex_definition(&input, &mut index),
+                '#'           => lex_directive(&input, &mut index),
+                '"'           => lex_string(&input, &mut index),
+                '.'           => lex_setter(&input, &mut index),
+                '0'..='9'     => lex_number(&input, &mut index),
                 name_range!() => lex_identifier(&input, &mut index),
+                '{'           => add_and_move(Token::StartBlock, &mut index),
+                '}'           => add_and_move(Token::EndBlock, &mut index),
+                ','           => add_and_move(Token::ArgListDeliminator, &mut index),
+                '('           => add_and_move(Token::StartArgList, &mut index),
+                ')'           => add_and_move(Token::EndArgList, &mut index),
+                ' ' | '\n'    => {
+                    index += 1;
+                    continue
+                },
                 '/' => {
                     if process_comment(&input, &mut index) {
                         continue
                     } else {
                         panic!("Unexpected token '/'");
                     }
-                },
-                '{' => add_and_move(Token::StartBlock, &mut index),
-                '}' => add_and_move(Token::EndBlock, &mut index),
-                ',' => add_and_move(Token::ArgListDeliminator, &mut index),
-                '(' => add_and_move(Token::StartArgList, &mut index),
-                ')' => add_and_move(Token::EndArgList, &mut index),
-                ' ' | '\n' => {
-                    index += 1;
-                    continue
                 },
                 _ => Token::Number(-1),
             })
