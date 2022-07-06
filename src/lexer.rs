@@ -33,7 +33,7 @@ pub enum Identifier {
 pub enum Token {
     String(String),             // "mystring"
     Number(i32),                // 0123456789
-    Bool(i32),                   // true, false
+    Bool(i32),                  // true, false
     Definition(Definition),     // @mydefinition
     Directive(Directive),       // #mydirective
     Setter(String),             // .mysetter
@@ -243,7 +243,6 @@ impl<'a> Lexer<'a> {
         }
     }
     pub fn lex(&mut self) -> &Vec<Token> {
-        
         loop {
             let input_char = self.input.chars().nth(self.index);
             if let Some(c) = input_char {
@@ -276,7 +275,7 @@ impl<'a> Lexer<'a> {
             } else {
                 break;
             }
-    }
+        }
         &self.tokens
     }
 }
