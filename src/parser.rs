@@ -70,11 +70,12 @@ impl<'a> Parser<'a> {
     fn block(&mut self) -> Vec<Statement<'a>> {
         let token = &self.tokens[self.index];
         if let Token::StartBlock = token {
+            self.index += 1;
             let mut statements = Vec::new();
             loop {
-                self.index += 1;
                 let token = &self.tokens[self.index];
                 if let Token::EndBlock = token {
+                    self.index += 1;
                     break;
                 }
                 let statement = self.parse_statement();
@@ -116,6 +117,7 @@ impl<'a> Parser<'a> {
                     _ => panic!("found '{}', expected ','", token.to_string())
                 }
             }
+            self.index += 1;
             args
         } else {
             panic!("expected start of argument list, found {}", token.to_string());
@@ -123,17 +125,15 @@ impl<'a> Parser<'a> {
     }
 
     fn definition(&mut self, definition_type: &'a DefinitionType) -> Statement<'a> {
+        self.index += 1;
         if let DefinitionType::Object(name) = definition_type {
-            self.index += 1;
             let definition = Definition {
                 name: &name,
                 children: self.block()
             };
-            self.index += 1;
 
             Statement::Definition(definition)
         } else {
-            self.index += 1;
             let arglist = self.arglist();
             
             if arglist.len() != 2 {
@@ -188,31 +188,23 @@ impl<'a> Parser<'a> {
             match token {
                 Token::StartArgList => {
                     arguments = self.arglist();
-                    self.index += 1;
                     
                     let token = &self.tokens[self.index];
                     if let Token::StartBlock = token {
                         children = self.block();
-                        self.index += 1;
                     }
                 },
                 Token::StartBlock => {
                     children = self.block();
-                    self.index += 1;
                 },
                 _ => panic!("expected the start of an argument list or block, found '{}'", token.to_string())
             }
-
-            println!("{}", name);
 
             loop {
                 let token = &self.tokens[self.index];
                 
                 match token {
-                    Token::Identifier(_) | Token::EndBlock => {
-                        self.index -= 1;
-                        break;
-                    },
+                    Token::Identifier(_) | Token::EndBlock => break,
                     Token::Setter(name) => {
                         self.index += 1;
 
@@ -232,7 +224,6 @@ impl<'a> Parser<'a> {
                             },
                             _ => panic!("expected Number, String, or Bool, found {}", value.to_string())
                         }
-                        self.index += 1;
                     },
                     _ => {
                         panic!("expected setter, found {}", token.to_string());
