@@ -1,277 +1,288 @@
-use super::lexer::{lex, Token, Definition as LexDefinition, Directive as LexDirective, Identifier as LexIdentifier, TypeIdentifier as LexTypeIdentifier, token_to_string};
-use std::path::Path;
-use std::fs;
+use super::lexer::{
+    Token,
+    DefinitionType,
+    DirectiveType,
+    IdentifierType,
+    TypeIdentifierType as TokenTypeIdentifierType
+};
 
-const LIB_DIR: &str = "./examples/libs";
+// Statement
 
-pub enum XMLPlacementType {
-    Inline,
-    Child
+#[derive(Debug)]
+pub struct Property<'a> {
+    internal_type: &'a TokenTypeIdentifierType,
+    name: &'a String,
+    definition_type: &'a DefinitionType
 }
 
-pub enum DefinitionType {
-    Prop,
-    Arg
+#[derive(Debug)]
+pub struct Definition<'a> {
+    name: &'a String,
+    children: Vec<Statement<'a>>,
 }
 
-// NOTE: there are no booleans because true and false are implicitly converted to their numberic counterparts (1, 0)
-pub enum InternalValue {
-    String(String),
-    Number(i32),
+#[derive(Debug)]
+pub struct Setter<'a> {
+    name: &'a String,
+    value: &'a Token
 }
 
-pub enum Argument {
-    String(String),
-    Number(i32),
-    Type(LexTypeIdentifier)
+#[derive(Debug)]
+pub struct Object<'a> {
+    name: &'a String,
+    children: Vec<Statement<'a>>,
+    arguments: Vec<&'a Token>,
+    setters: Vec<Setter<'a>>
 }
 
-pub struct Property {
-    xml_placement_type: XMLPlacementType,
-    definition_type: DefinitionType,
-    internal_value_type: LexTypeIdentifier,
-    name: String,
-    value: Option<InternalValue>,
+#[derive(Debug)]
+pub enum Statement<'a> {
+    Property(Property<'a>),
+    Definition(Definition<'a>),
+    Object(Object<'a>),
+    Header(&'a String),
+    Include(&'a String)
 }
 
-pub struct Object {
-    children: Vec<Object>,
-    properties: Vec<Property>,
-    definition_name: String
-}
-
-pub enum Definition {
-    Collective(Vec<Object>),  // Defined as a collection of other Objects
-    Raw(Vec<Property>),       // Defined as a collection of Args and Props which get translated into XML
-}
-
-pub struct ParsingResult {
-    pub definitions: Vec<Definition>,
-    pub headers: Vec<String>,
-}
-
-fn parse_include(tokens: &Vec<Token>, index: &mut usize, result: &mut ParsingResult) {
-    *index += 1;
-    if let Token::String(include) = &tokens[*index] {
-        let path_str = format!("{}/{}.gui", LIB_DIR, include);
-        let path = Path::new(path_str.as_str());
-        
-        if path.exists() {
-            let tokens = match fs::read_to_string(path) {
-                Ok(s) => lex(&s),
-                Err(e) => panic!("{e}")
-            };
-
-            parse(&tokens, result);
-        } else {
-            panic!("File not found: {}", path_str.as_str());
-        }
-    } else {
-        panic!("expected string, got {}", token_to_string(&tokens[*index]));
-    }
-}
-
-fn parse_header(tokens: &Vec<Token>, index: &mut usize, result: &mut ParsingResult) {
-    *index += 1;
-    if let Token::String(header) = &tokens[*index] {
-        result.headers.push(String::from(header));
-    } else {
-        panic!("expected string, got {}", token_to_string(&tokens[*index]));
-    }
-}
-
-fn parse_arglist(tokens: &Vec<Token>, index: &mut usize, size: usize) -> Vec<Argument> {
-    let token = tokens.get(*index);
-    let mut arglist: Vec<Argument> = Vec::new();
-
-    if let Some(token) = token {
-        match token {
-            Token::StartArgList => {
-                for _ in 0..size {
-                    if *index + 2 >= tokens.len() {
-                        panic!("arglist started but not ended");
-                    }
-                    *index += 1; 
-                    let token = tokens.get(*index).unwrap();
-                    arglist.push(
-                        match token {
-                            Token::String(s) => Argument::String(s.to_string()),
-                            Token::Number(n) => Argument::Number(*n),
-                            Token::Bool(b) => Argument::Number(*b),
-                            Token::Identifier(identifier) => {
-                                if let LexIdentifier::Type(identifier) = identifier {
-                                    Argument::Type(*identifier)
-                                } else {
-                                    panic!("unrecognized identifier in arglist");
-                                }
-                            },
-                            _ => panic!("unexpected {} in arglist", token_to_string(&token))
-                        }
-                    );
-                    *index += 1;
-                    let token = tokens.get(*index).unwrap();
-                    match token {
-                        Token::ArgListDeliminator => continue,
-                        Token::EndArgList => break,
-                        _ => panic!("expected ',' or ')', got {}", token_to_string(&token))
-                    }
-                } 
-            },
-            _ => panic!("no arglist found")
-        }
-        arglist
-    } else {
-        panic!("no arglist found");
-    }
-}
-
-fn parse_property_definition(tokens: &Vec<Token>, index: &mut usize, token_definition: &LexDefinition, props: &mut Vec<Property>) {
-    if let LexDefinition::Object(_) = token_definition {
-        panic!("cannot define an object inside another object")
-    }
-    *index += 1;
-    let arglist: Vec<Argument> = parse_arglist(tokens, index, 2);
-    if let Argument::String(name_arg) = arglist.get(0).unwrap()  {
-        if let Argument::Type(type_arg) = arglist.get(1).unwrap() {
-            props.push(
-                match token_definition {
-                    LexDefinition::Object(_) => panic!("cannot define an object inside another object"),
-                    LexDefinition::InlineProp => Property {
-                        xml_placement_type: XMLPlacementType::Inline,
-                        definition_type: DefinitionType::Prop,
-                        internal_value_type: *type_arg,
-                        name: name_arg.to_string(),
-                        value: None
-                    },
-                    LexDefinition::InlineArg => Property {
-                        xml_placement_type: XMLPlacementType::Inline,
-                        definition_type: DefinitionType::Arg,
-                        internal_value_type: *type_arg,
-                        name: name_arg.to_string(),
-                        value: None
-                    },
-                    LexDefinition::ChildProp => Property {
-                        xml_placement_type: XMLPlacementType::Child,
-                        definition_type: DefinitionType::Prop,
-                        internal_value_type: *type_arg,
-                        name: name_arg.to_string(),
-                        value: None
-                    },
-                    LexDefinition::ChildArg => Property {
-                        xml_placement_type: XMLPlacementType::Child,
-                        definition_type: DefinitionType::Arg,
-                        internal_value_type: *type_arg,
-                        name: name_arg.to_string(),
-                        value: None
-                    },
-                }
-            );
+impl<'a> Statement<'a> {
+    pub fn to_string(&self) -> &str {
+        match self {
+            Statement::Property(_) => "Property",
+            Statement::Definition(_) => "Definition",
+            Statement::Object(_) => "Object",
+            Statement::Header(_) => "Header",
+            Statement::Include(_) => "Include"
         }
     }
 }
 
-fn parse_object(tokens: &Vec<Token>, index: &mut usize, definition_name: &String) -> Object {
-    let object = Object {
-        children: Vec::new(),
-        definition_name: definition_name.to_string(),
-        properties: Vec::new()
-    };
-    
-    object
+// Parser
+
+pub struct Parser<'a> {
+    statements: Vec<Statement<'a>>,
+    index: usize,
+    tokens: &'a Vec<Token>
 }
 
-fn parse_object_definition(tokens: &Vec<Token>, index: &mut usize) -> Definition {
-    *index += 1;
+impl<'a> Parser<'a> {
+    // Parsing Functions
 
-    match tokens[*index] {
-        Token::StartBlock => {
-            let mut definition: Option<Definition> = None;
+    fn block(&mut self) -> Vec<Statement<'a>> {
+        let token = &self.tokens[self.index];
+        if let Token::StartBlock = token {
+            let mut statements = Vec::new();
             loop {
-                *index += 1;
-                let token = tokens.get(*index);
-
-                if let Some(token) = token {
-                    match token {
-                        Token::EndBlock => {
-                            return definition.expect("useless object definition");
-                        },
-                        Token::Definition(token_definition) => {
-                            if definition.is_none() {
-                                definition = Some(Definition::Raw(Vec::new()))
-                            }
-                            match &mut definition {
-                                Some(definition) => {
-                                    match definition {
-                                        Definition::Collective(_) => {
-                                            panic!("cannot define children in a raw object definition");
-                                        },
-                                        Definition::Raw(props) => {
-                                            parse_property_definition(tokens, index, token_definition, props);
-                                        }
-                                    }
-                                },
-                                None => ()
-                            }
-                        },  
-                        Token::Identifier(token_identifier) => {
-                            if definition.is_none() {
-                                definition = Some(Definition::Collective(Vec::new()));
-                            }
-                            match definition.as_mut().unwrap() {
-                                Definition::Collective(children) => {
-                                    match token_identifier {
-                                        LexIdentifier::Type(_) => panic!("expected identifier, found type identifier"),
-                                        LexIdentifier::Generic(generic_identifier) => children.push(parse_object(tokens, index, generic_identifier))
-                                    }
-                                } ,
-                                Definition::Raw(_) => {
-                                    panic!("cannot define Props or Args on a collective object definition");
-                                }
-                            }
-                        }
-                        _ => todo!()
-                    }
-                } else {
-                    panic!("block not closed");
+                self.index += 1;
+                let token = &self.tokens[self.index];
+                if let Token::EndBlock = token {
+                    break;
+                }
+                let statement = self.parse_statement();
+                match statement {
+                    Statement::Property(_) | Statement::Object(_) => statements.push(statement),
+                    _ => panic!("found {} inside block. Only properties and objects are allowed here.", statement.to_string()),
                 }
             }
-        },
-        _ => panic!("expected strong, got {}", token_to_string(&tokens[*index]))
-    };
-}
-
-pub fn parse(tokens: &Vec<Token>, result: &mut ParsingResult) {
-    for token in tokens {
-        println!("{:?}", token);
+            statements
+        } else {
+            panic!("expected the start of a block, got {}", token.to_string());
+        }
     }
-    let mut index = 0;
-    loop {
-        let token = tokens.get(index);
-        if let Some(token) = token {
-            match token {
-                Token::Directive(dir) => {
-                    match dir {
-                        LexDirective::Include => {
-                            parse_include(tokens, &mut index, result);
-                        },
-                        LexDirective::Header => {
-                            parse_header(tokens, &mut index, result);
+
+    fn arglist(&mut self) -> Vec<&'a Token> {
+        let token = &self.tokens[self.index];
+        if let Token::StartArgList = token {
+            let mut args = Vec::new();
+            loop {
+                self.index += 1;
+                let token = &self.tokens[self.index];
+                match token {
+                    Token::Number(_) | Token::String(_) | Token::Bool(_) => args.push(token),
+                    Token::Identifier(identifier) => {
+                        if let IdentifierType::Type(_) = identifier {
+                            args.push(token)
+                        } else {
+                            panic!("found generic identifier, expected Number, String, Bool, or type identifier");
                         }
+                    },
+                    _ => panic!("found {}, expected Number, String, Bool, or type identifier", token.to_string())
+                }
+
+                self.index += 1;
+                let token = &self.tokens[self.index];
+                match token {
+                    Token::ArgListDeliminator => continue,
+                    Token::EndArgList => break,
+                    _ => panic!("found '{}', expected ','", token.to_string())
+                }
+            }
+            args
+        } else {
+            panic!("expected start of argument list, found {}", token.to_string());
+        }
+    }
+
+    fn definition(&mut self, definition_type: &'a DefinitionType) -> Statement<'a> {
+        if let DefinitionType::Object(name) = definition_type {
+            self.index += 1;
+            let definition = Definition {
+                name: &name,
+                children: self.block()
+            };
+            self.index += 1;
+
+            Statement::Definition(definition)
+        } else {
+            self.index += 1;
+            let arglist = self.arglist();
+            
+            if arglist.len() != 2 {
+                panic!("expected only 2 arguments, found {} args", arglist.len());
+            }
+            
+            let name = &arglist[0];
+            if let Token::String(name) = name {
+                let internal_type = &arglist[1];
+                if let Token::Identifier(IdentifierType::Type(internal_type)) = internal_type {
+                    let property = Property {
+                        name,
+                        internal_type,
+                        definition_type
+                    };
+                    Statement::Property(property)
+                } else {
+                    panic!("expected type identifier, found {}", internal_type.to_string());
+                }
+            } else {
+                panic!("expected String, found {}", name.to_string());
+            }
+        }
+    }
+
+    fn directive(&mut self, directive_type: &DirectiveType) -> Statement<'a> {
+        self.index += 1;
+        let directive_argument_token = &self.tokens[self.index];
+        if let Token::String(arg) = directive_argument_token {
+            self.index += 1;
+            match directive_type {
+                DirectiveType::Header => {
+                    Statement::Header(arg)
+                },
+                DirectiveType::Include => {
+                    Statement::Include(arg)
+                }
+            }
+        } else {
+            panic!("expected string, found {}", directive_argument_token.to_string());
+        }
+    }
+
+    fn object(&mut self, identifier_type: &'a IdentifierType) -> Statement<'a> {
+        if let IdentifierType::Generic(name) = identifier_type {
+            self.index += 1;
+            let token = &self.tokens[self.index];
+            let mut arguments = Vec::new();
+            let mut children = Vec::new();
+            let mut setters = Vec::new();
+            
+            match token {
+                Token::StartArgList => {
+                    arguments = self.arglist();
+                    self.index += 1;
+                    
+                    let token = &self.tokens[self.index];
+                    if let Token::StartBlock = token {
+                        children = self.block();
+                        self.index += 1;
                     }
                 },
-                Token::Definition(def) => {
-                    match def {
-                        LexDefinition::Object(_name) => {
-                            result.definitions.push(parse_object_definition(tokens, &mut index));
-                        },
-                        _ => panic!("only object definitions are allowed globally")
+                Token::StartBlock => {
+                    children = self.block();
+                    self.index += 1;
+                },
+                _ => panic!("expected the start of an argument list or block, found '{}'", token.to_string())
+            }
+
+            println!("{}", name);
+
+            loop {
+                let token = &self.tokens[self.index];
+                
+                match token {
+                    Token::Identifier(_) | Token::EndBlock => {
+                        self.index -= 1;
+                        break;
+                    },
+                    Token::Setter(name) => {
+                        self.index += 1;
+
+                        let args = self.arglist();
+                        if args.len() != 1 {
+                            panic!("expected 1 argument, got {}", args.len());
+                        }
+
+                        let value = args[0];
+
+                        match value {
+                            Token::Number(_) | Token::String(_) | Token::Bool(_) => {
+                                setters.push(Setter {
+                                    name,
+                                    value
+                                })
+                            },
+                            _ => panic!("expected Number, String, or Bool, found {}", value.to_string())
+                        }
+                        self.index += 1;
+                    },
+                    _ => {
+                        panic!("expected setter, found {}", token.to_string());
                     }
                 }
-                _ => ()
             }
-            index += 1;
+            
+            let object = Object {
+                arguments,
+                name,
+                children,
+                setters
+            };
+
+            Statement::Object(object)
         } else {
-            break;
+            panic!("expected generic identifier, found type identifier");
         }
+    }
+
+    fn parse_statement(&mut self) -> Statement<'a> {
+        let token = &self.tokens[self.index];
+        match token {
+            Token::Definition(definition) => self.definition(definition),
+            Token::Directive(directive) => self.directive(directive),
+            Token::Identifier(identifier) => self.object(identifier),
+            _ => panic!("unexpected {} {:?} {:?} {:?}", token.to_string(), self.tokens[self.index - 1], self.tokens[self.index - 2], self.tokens[self.index - 3])
+        }
+    }
+
+    // Pubs
+    pub fn new(tokens: &Vec<Token>) -> Parser {
+        return Parser {
+            statements: Vec::new(),
+            index: 0,
+            tokens
+        }
+    }
+
+    pub fn parse(&mut self) -> &Vec<Statement> {
+        loop {
+            if self.index >= self.tokens.len() {
+                break
+            }
+            let statement = self.parse_statement();
+            match statement {
+                Statement::Definition(_) | Statement::Header(_) | Statement::Include(_) => self.statements.push(statement),
+                _ => panic!("found {} on top level. Only object definitions and directives are allowed here.", statement.to_string()),
+            }
+        }
+        &self.statements
     }
 }
