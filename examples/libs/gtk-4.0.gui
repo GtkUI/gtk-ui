@@ -10,7 +10,7 @@
 
 @GtkLabel {
   @ChildArg("title", String)
-  @ChildProp("visible", bool)
+  @ChildProp("visible", Bool)
   @ChildProp("align", String)
   @ChildProp("margin-top", Number)
   @ChildProp("margin-bottom", Number)
