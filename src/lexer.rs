@@ -3,7 +3,7 @@ macro_rules! name_range{() => {'a'..='z' | 'A'..='Z' | '-' | '_'}}
 // Tokens
 
 #[derive(Debug)]
-pub enum Definition {
+pub enum DefinitionType {
     InlineProp,
     InlineArg,
     ChildProp,
@@ -11,22 +11,34 @@ pub enum Definition {
     Object(String)
 }
 
+impl DefinitionType {
+    pub fn to_string(&self) -> &str {
+        match self {
+            DefinitionType::InlineArg => "InlineArg",
+            DefinitionType::InlineProp => "InlineProp",
+            DefinitionType::ChildArg => "ChildArg",
+            DefinitionType::ChildProp => "ChildProp",
+            DefinitionType::Object(_) => "Object"
+        }
+    }
+}
+
 #[derive(Debug)]
-pub enum Directive {
+pub enum DirectiveType {
     Include,
     Header
 }
 #[derive(Debug, Clone, Copy)]
-pub enum TypeIdentifier {
+pub enum TypeIdentifierType {
     String,
     Number,
     Bool
 }
 
 #[derive(Debug)]
-pub enum Identifier {
+pub enum IdentifierType {
     Generic(String),
-    Type(TypeIdentifier)
+    Type(TypeIdentifierType)
 }
 
 #[derive(Debug)]
@@ -34,10 +46,10 @@ pub enum Token {
     String(String),             // "mystring"
     Number(i32),                // 0123456789
     Bool(i32),                  // true, false
-    Definition(Definition),     // @mydefinition
-    Directive(Directive),       // #mydirective
+    Definition(DefinitionType), // @mydefinition
+    Directive(DirectiveType),   // #mydirective
     Setter(String),             // .mysetter
-    Identifier(Identifier),     // anything else
+    Identifier(IdentifierType), // anything else
     StartBlock,                 // { 
     EndBlock,                   // }
     StartArgList,               // (
@@ -64,32 +76,32 @@ impl Token {
     }
 }
 
-impl Definition {
+impl DefinitionType {
     pub fn from(definition: &String) -> Token {
         Token::Definition(
             if definition == "InlineProp" {
-                Definition::InlineProp
+                DefinitionType::InlineProp
             } else if definition == "InlineArg" {
-                Definition::InlineArg
+                DefinitionType::InlineArg
             } else if definition == "ChildProp" {
-                Definition::ChildProp
+                DefinitionType::ChildProp
             } else if definition == "ChildArg" {
-                Definition::ChildArg
+                DefinitionType::ChildArg
             } else {
-                Definition::Object(String::from(definition))
+                DefinitionType::Object(String::from(definition))
             }
         )
     }
 }
 
-impl Directive {
+impl DirectiveType {
     pub fn from(directive: &String) -> Token {
-        let directive_type: Option<Directive>;
+        let directive_type: Option<DirectiveType>;
 
         if directive == "include" {
-            directive_type = Some(Directive::Include);
+            directive_type = Some(DirectiveType::Include);
         } else if directive == "header" {
-            directive_type = Some(Directive::Header);
+            directive_type = Some(DirectiveType::Header);
         } else {
             directive_type = None;
         }
@@ -124,7 +136,7 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        Definition::from(&definition)
+        DefinitionType::from(&definition)
     }
 
     fn directive(&mut self) -> Token {
@@ -140,7 +152,7 @@ impl<'a> Lexer<'a> {
             }
         }
         
-        Directive::from(&directive)
+        DirectiveType::from(&directive)
     }
 
     fn string(&mut self) -> Token {
@@ -211,10 +223,10 @@ impl<'a> Lexer<'a> {
         match identifier.as_str() {
             "true"   => Token::Bool(1),
             "false"  => Token::Bool(0),
-            "String" => Token::Identifier(Identifier::Type(TypeIdentifier::String)),
-            "Number" => Token::Identifier(Identifier::Type(TypeIdentifier::Number)),
-            "Bool"   => Token::Identifier(Identifier::Type(TypeIdentifier::Bool)),
-            _        => Token::Identifier(Identifier::Generic(identifier))
+            "String" => Token::Identifier(IdentifierType::Type(TypeIdentifierType::String)),
+            "Number" => Token::Identifier(IdentifierType::Type(TypeIdentifierType::Number)),
+            "Bool"   => Token::Identifier(IdentifierType::Type(TypeIdentifierType::Bool)),
+            _        => Token::Identifier(IdentifierType::Generic(identifier))
         }
     }
 
