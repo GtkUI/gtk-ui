@@ -2,7 +2,7 @@ macro_rules! name_range{() => {'a'..='z' | 'A'..='Z' | '-' | '_'}}
 
 // Tokens
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum DefinitionType {
     InlineProp,
     InlineArg,
@@ -11,37 +11,25 @@ pub enum DefinitionType {
     Object(String)
 }
 
-impl DefinitionType {
-    pub fn to_string(&self) -> &str {
-        match self {
-            DefinitionType::InlineArg => "InlineArg",
-            DefinitionType::InlineProp => "InlineProp",
-            DefinitionType::ChildArg => "ChildArg",
-            DefinitionType::ChildProp => "ChildProp",
-            DefinitionType::Object(_) => "Object"
-        }
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum DirectiveType {
     Include,
     Header
 }
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum TypeIdentifierType {
     String,
     Number,
     Bool
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum IdentifierType {
     Generic(String),
     Type(TypeIdentifierType)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Token {
     String(String),             // "mystring"
     Number(i32),                // 0123456789
@@ -94,6 +82,18 @@ impl DefinitionType {
     }
 }
 
+impl DefinitionType {
+    pub fn to_string(&self) -> &str {
+        match self {
+            DefinitionType::InlineArg => "InlineArg",
+            DefinitionType::InlineProp => "InlineProp",
+            DefinitionType::ChildArg => "ChildArg",
+            DefinitionType::ChildProp => "ChildProp",
+            DefinitionType::Object(_) => "Object"
+        }
+    }
+}
+
 impl DirectiveType {
     pub fn from(directive: &String) -> Token {
         let directive_type: Option<DirectiveType>;
@@ -115,13 +115,13 @@ impl DirectiveType {
 
 // Lexer
 
-pub struct Lexer<'a> {
-    tokens: Vec<Token>,
+pub struct Lexer {
+    pub tokens: Vec<Token>,
     index: usize,
-    input: &'a String
+    input: String
 }
 
-impl<'a> Lexer<'a> {
+impl Lexer {
     // Lexing Functions
     fn definition(&mut self) -> Token {
         let mut definition = String::new();
@@ -247,14 +247,14 @@ impl<'a> Lexer<'a> {
     }
 
     // Pubs
-    pub fn new(s: &'a String) -> Lexer<'a> {
-        return Lexer {
+    pub fn new(s: String) -> Self {
+        Self {
             tokens: Vec::new(),
             index: 0,
             input: s, 
         }
     }
-    pub fn lex(&mut self) -> &Vec<Token> {
+    pub fn lex(&mut self) {
         loop {
             let input_char = self.input.chars().nth(self.index);
             if let Some(c) = input_char {
@@ -288,6 +288,5 @@ impl<'a> Lexer<'a> {
                 break;
             }
         }
-        &self.tokens
     }
 }

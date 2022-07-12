@@ -9,42 +9,42 @@ use super::lexer::{
 // Statement
 
 #[derive(Debug)]
-pub struct Property<'a> {
-    internal_type: &'a TokenTypeIdentifierType,
-    name: &'a String,
-    definition_type: &'a DefinitionType
+pub struct Property {
+    internal_type: TokenTypeIdentifierType,
+    name: String,
+    definition_type: DefinitionType
 }
 
 #[derive(Debug)]
-pub struct Definition<'a> {
-    name: &'a String,
-    children: Vec<Statement<'a>>,
+pub struct Definition {
+    name: String,
+    children: Vec<Statement>,
 }
 
 #[derive(Debug)]
-pub struct Setter<'a> {
-    name: &'a String,
-    value: &'a Token
+pub struct Setter {
+    name: String,
+    value: Token
 }
 
 #[derive(Debug)]
-pub struct Object<'a> {
-    name: &'a String,
-    children: Vec<Statement<'a>>,
-    arguments: Vec<&'a Token>,
-    setters: Vec<Setter<'a>>
+pub struct Object {
+    name: String,
+    children: Vec<Statement>,
+    arguments: Vec<Token>,
+    setters: Vec<Setter>
 }
 
 #[derive(Debug)]
-pub enum Statement<'a> {
-    Property(Property<'a>),
-    Definition(Definition<'a>),
-    Object(Object<'a>),
-    Header(&'a String),
-    Include(&'a String)
+pub enum Statement {
+    Property(Property),
+    Definition(Definition),
+    Object(Object),
+    Header(String),
+    Include(String)
 }
 
-impl<'a> Statement<'a> {
+impl Statement {
     pub fn to_string(&self) -> &str {
         match self {
             Statement::Property(_) => "Property",
@@ -58,16 +58,16 @@ impl<'a> Statement<'a> {
 
 // Parser
 
-pub struct Parser<'a> {
-    statements: Vec<Statement<'a>>,
+pub struct Parser {
+    pub statements: Vec<Statement>,
     index: usize,
-    tokens: &'a Vec<Token>
+    tokens: Vec<Token>
 }
 
-impl<'a> Parser<'a> {
+impl Parser {
     // Parsing Functions
 
-    fn block(&mut self) -> Vec<Statement<'a>> {
+    fn block(&mut self) -> Vec<Statement> {
         let token = &self.tokens[self.index];
         if let Token::StartBlock = token {
             self.index += 1;
@@ -90,18 +90,18 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn arglist(&mut self) -> Vec<&'a Token> {
+    fn arglist(&mut self) -> Vec<Token> {
         let token = &self.tokens[self.index];
         if let Token::StartArgList = token {
-            let mut args = Vec::new();
+            let mut args: Vec<Token> = Vec::new();
             loop {
                 self.index += 1;
                 let token = &self.tokens[self.index];
                 match token {
-                    Token::Number(_) | Token::String(_) | Token::Bool(_) => args.push(token),
+                    Token::Number(_) | Token::String(_) | Token::Bool(_) => args.push(token.clone()),
                     Token::Identifier(identifier) => {
                         if let IdentifierType::Type(_) = identifier {
-                            args.push(token)
+                            args.push(token.clone())
                         } else {
                             panic!("found generic identifier, expected Number, String, Bool, or type identifier");
                         }
@@ -124,11 +124,11 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn definition(&mut self, definition_type: &'a DefinitionType) -> Statement<'a> {
+    fn definition(&mut self, definition_type: DefinitionType) -> Statement {
         self.index += 1;
         if let DefinitionType::Object(name) = definition_type {
             let definition = Definition {
-                name: &name,
+                name: name.to_string(),
                 children: self.block()
             };
 
@@ -145,9 +145,9 @@ impl<'a> Parser<'a> {
                 let internal_type = &arglist[1];
                 if let Token::Identifier(IdentifierType::Type(internal_type)) = internal_type {
                     let property = Property {
-                        name,
-                        internal_type,
-                        definition_type
+                        name: name.clone(),
+                        internal_type: internal_type.clone(),
+                        definition_type: definition_type.clone()
                     };
                     Statement::Property(property)
                 } else {
@@ -159,17 +159,17 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn directive(&mut self, directive_type: &DirectiveType) -> Statement<'a> {
+    fn directive(&mut self, directive_type: DirectiveType) -> Statement {
         self.index += 1;
         let directive_argument_token = &self.tokens[self.index];
         if let Token::String(arg) = directive_argument_token {
             self.index += 1;
             match directive_type {
                 DirectiveType::Header => {
-                    Statement::Header(arg)
+                    Statement::Header(arg.clone())
                 },
                 DirectiveType::Include => {
-                    Statement::Include(arg)
+                    Statement::Include(arg.clone())
                 }
             }
         } else {
@@ -177,7 +177,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn object(&mut self, identifier_type: &'a IdentifierType) -> Statement<'a> {
+    fn object(&mut self, identifier_type: IdentifierType) -> Statement {
         if let IdentifierType::Generic(name) = identifier_type {
             self.index += 1;
             let token = &self.tokens[self.index];
@@ -208,18 +208,19 @@ impl<'a> Parser<'a> {
                     Token::Setter(name) => {
                         self.index += 1;
 
+                        let name = name.clone();
                         let args = self.arglist();
                         if args.len() != 1 {
                             panic!("expected 1 argument, got {}", args.len());
                         }
 
-                        let value = args[0];
+                        let value = &args[0];
 
                         match value {
                             Token::Number(_) | Token::String(_) | Token::Bool(_) => {
                                 setters.push(Setter {
-                                    name,
-                                    value
+                                    name: name,
+                                    value: value.clone()
                                 })
                             },
                             _ => panic!("expected Number, String, or Bool, found {}", value.to_string())
@@ -233,7 +234,7 @@ impl<'a> Parser<'a> {
             
             let object = Object {
                 arguments,
-                name,
+                name: name.clone(),
                 children,
                 setters
             };
@@ -244,18 +245,27 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_statement(&mut self) -> Statement<'a> {
+    fn parse_statement(&mut self) -> Statement {
         let token = &self.tokens[self.index];
         match token {
-            Token::Definition(definition) => self.definition(definition),
-            Token::Directive(directive) => self.directive(directive),
-            Token::Identifier(identifier) => self.object(identifier),
+            Token::Definition(definition) => {
+                let definition = definition.clone();
+                self.definition(definition)
+            },
+            Token::Directive(directive) => {
+                let directive = directive.clone();
+                self.directive(directive)
+            },
+            Token::Identifier(identifier) => {
+                let identifier = identifier.clone();
+                self.object(identifier)
+            },
             _ => panic!("unexpected {} {:?} {:?} {:?}", token.to_string(), self.tokens[self.index - 1], self.tokens[self.index - 2], self.tokens[self.index - 3])
         }
     }
 
     // Pubs
-    pub fn new(tokens: &Vec<Token>) -> Parser {
+    pub fn new(tokens: Vec<Token>) -> Parser {
         return Parser {
             statements: Vec::new(),
             index: 0,
