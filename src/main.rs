@@ -4,9 +4,11 @@ use std::process;
 
 mod lexer;
 mod parser;
+mod preprocessor;
 
 use lexer::Lexer;
 use parser::Parser;
+use preprocessor::Preprocessor;
 
 
 fn print_help() {
@@ -33,9 +35,11 @@ fn main() {
     let mut parser = Parser::new(lexer.tokens);
     parser.parse();
 
-    println!("Statement length: {}", parser.statements.len());
-
-    for statement in &parser.statements {
+    println!("Preprocessing...");
+    let mut preprocessor = Preprocessor::new();
+    preprocessor.preprocess(parser.statements, vec![filename.clone()]);
+    
+    for statement in &preprocessor.statements {
         println!("{:?}", statement);
     }
 }
