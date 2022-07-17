@@ -1,8 +1,8 @@
 use super::lexer::{
     Token,
-    DefinitionType,
-    DirectiveType,
-    IdentifierType,
+    DefinitionType as TokenDefinitionType,
+    DirectiveType as TokenDirectiveType,
+    IdentifierType as TokenIdentifierType,
     TypeIdentifierType as TokenTypeIdentifierType
 };
 
@@ -12,13 +12,20 @@ use super::lexer::{
 pub struct Property {
     internal_type: TokenTypeIdentifierType,
     name: String,
-    definition_type: DefinitionType
+    definition_type: TokenDefinitionType
+}
+
+#[derive(Debug)]
+pub enum DefinitionType {
+    Raw,
+    Collective
 }
 
 #[derive(Debug)]
 pub struct Definition {
     name: String,
     children: Vec<Statement>,
+    definition_type: DefinitionType
 }
 
 #[derive(Debug)]
@@ -100,7 +107,7 @@ impl Parser {
                 match token {
                     Token::Number(_) | Token::String(_) | Token::Bool(_) => args.push(token.clone()),
                     Token::Identifier(identifier) => {
-                        if let IdentifierType::Type(_) = identifier {
+                        if let TokenIdentifierType::Type(_) = identifier {
                             args.push(token.clone())
                         } else {
                             panic!("found generic identifier, expected Number, String, Bool, or type identifier");
@@ -124,12 +131,23 @@ impl Parser {
         }
     }
 
-    fn definition(&mut self, definition_type: DefinitionType) -> Statement {
+    fn definition(&mut self, definition_type: TokenDefinitionType) -> Statement {
         self.index += 1;
-        if let DefinitionType::Object(name) = definition_type {
+        if let TokenDefinitionType::Object(name) = definition_type {
+            let block = self.block();
+            let definition_type = {
+                if block.iter().all(|x| matches!(x, Statement::Property(_))) {
+                    DefinitionType::Raw
+                } else if block.iter().all(|x| matches!(x, Statement::Object(_))) {
+                    DefinitionType::Collective
+                } else {
+                    panic!("a definition can only have all property definitions or all objects");
+                }
+            };
             let definition = Definition {
                 name: name.to_string(),
-                children: self.block()
+                children: block,
+                definition_type
             };
 
             Statement::Definition(definition)
@@ -143,7 +161,7 @@ impl Parser {
             let name = &arglist[0];
             if let Token::String(name) = name {
                 let internal_type = &arglist[1];
-                if let Token::Identifier(IdentifierType::Type(internal_type)) = internal_type {
+                if let Token::Identifier(TokenIdentifierType::Type(internal_type)) = internal_type {
                     let property = Property {
                         name: name.clone(),
                         internal_type: internal_type.clone(),
@@ -159,16 +177,16 @@ impl Parser {
         }
     }
 
-    fn directive(&mut self, directive_type: DirectiveType) -> Statement {
+    fn directive(&mut self, directive_type: TokenDirectiveType) -> Statement {
         self.index += 1;
         let directive_argument_token = &self.tokens[self.index];
         if let Token::String(arg) = directive_argument_token {
             self.index += 1;
             match directive_type {
-                DirectiveType::Header => {
+                TokenDirectiveType::Header => {
                     Statement::Header(arg.clone())
                 },
-                DirectiveType::Include => {
+                TokenDirectiveType::Include => {
                     Statement::Include(arg.clone())
                 }
             }
@@ -177,8 +195,8 @@ impl Parser {
         }
     }
 
-    fn object(&mut self, identifier_type: IdentifierType) -> Statement {
-        if let IdentifierType::Generic(name) = identifier_type {
+    fn object(&mut self, identifier_type: TokenIdentifierType) -> Statement {
+        if let TokenIdentifierType::Generic(name) = identifier_type {
             self.index += 1;
             let token = &self.tokens[self.index];
             let mut arguments = Vec::new();
