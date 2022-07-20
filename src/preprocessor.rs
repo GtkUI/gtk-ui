@@ -42,7 +42,7 @@ impl Preprocessor {
                 
                     let mut lexer = Lexer::new(file_content);
                     lexer.lex();
-                    let mut parser = Parser::new(lexer.tokens);
+                    let mut parser = Parser::new(lexer.tokens, included_files.last().unwrap().clone());
                     parser.parse();
 
                     let mut included_files = included_files.clone();

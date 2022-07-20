@@ -5,10 +5,12 @@ use std::process;
 mod lexer;
 mod parser;
 mod preprocessor;
+mod generator;
 
 use lexer::Lexer;
 use parser::Parser;
 use preprocessor::Preprocessor;
+use generator::Generator;
 
 
 fn print_help() {
@@ -32,14 +34,14 @@ fn main() {
     lexer.lex();
     
     println!("Parsing...");
-    let mut parser = Parser::new(lexer.tokens);
+    let mut parser = Parser::new(lexer.tokens, filename.clone());
     parser.parse();
 
     println!("Preprocessing...");
     let mut preprocessor = Preprocessor::new();
     preprocessor.preprocess(parser.statements, vec![filename.clone()]);
     
-    for statement in &preprocessor.statements {
-        println!("{:?}", statement);
-    }
+    println!("Generating...");
+    let mut generator = Generator::new(preprocessor.statements);
+    generator.generate();
 }

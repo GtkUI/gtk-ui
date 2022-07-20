@@ -18,7 +18,8 @@ pub struct Property {
 #[derive(Debug)]
 pub enum DefinitionType {
     Raw,
-    Collective
+    Collective,
+    Root(String)
 }
 
 #[derive(Debug)]
@@ -68,7 +69,8 @@ impl Statement {
 pub struct Parser {
     pub statements: Vec<Statement>,
     index: usize,
-    tokens: Vec<Token>
+    tokens: Vec<Token>,
+    filename: String
 }
 
 impl Parser {
@@ -139,11 +141,16 @@ impl Parser {
                 if block.iter().all(|x| matches!(x, Statement::Property(_))) {
                     DefinitionType::Raw
                 } else if block.iter().all(|x| matches!(x, Statement::Object(_))) {
-                    DefinitionType::Collective
+                    if name == "root" {
+                        DefinitionType::Root(self.filename.clone())
+                    } else {
+                        DefinitionType::Collective
+                    }
                 } else {
                     panic!("a definition can only have all property definitions or all objects");
                 }
             };
+
             let definition = Definition {
                 name: name.to_string(),
                 children: block,
@@ -283,11 +290,12 @@ impl Parser {
     }
 
     // Pubs
-    pub fn new(tokens: Vec<Token>) -> Parser {
+    pub fn new(tokens: Vec<Token>, filename: String) -> Parser {
         return Parser {
             statements: Vec::new(),
             index: 0,
-            tokens
+            tokens,
+            filename
         }
     }
 
