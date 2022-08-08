@@ -225,15 +225,15 @@ impl Generator {
                 Statement::Definition(definition) => {
                     match &definition.definition_type {
                         DefinitionType::Root(filename) => {
+                            print!("Writing {}.ui... ", filename);
                             let mut file_content = String::new();
-                            
                             file_content.push_str(self.generate_from_collective(&definition.children).as_str());
-
                             file_content.push_str("</interface>");
 
                             let mut file = File::create(format!("{}.ui", filename)).expect("failed to create output file");
                             writeln!(file, "{}", self.header).expect("failed to write to output file");
                             writeln!(file, "{}", file_content).expect("failed to write to output file");
+                            println!("done!");
                         },
                         DefinitionType::Collective => {
                             self.definitions.insert(definition.name.clone(), CachedDefinition::Collective(self.generate_from_collective(&definition.children)));
