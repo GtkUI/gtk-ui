@@ -1,3 +1,5 @@
+#header "<requires lib=\"gtk\" version=\"4.0\"/>"
+
 @GtkWindow {
   @ChildProp("title", String)
   @InlineProp("id", String)
@@ -9,9 +11,9 @@
 }
 
 @GtkLabel {
-  @ChildArg("title", String)
+  @ChildArg("label", String)
   @ChildProp("visible", Bool)
-  @ChildProp("align", String)
+  @ChildProp("halign", String)
   @ChildProp("margin-top", Number)
   @ChildProp("margin-bottom", Number)
 }
