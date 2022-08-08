@@ -32,6 +32,21 @@ pub struct Generator {
 
 impl Generator {
 
+    fn is_valid_type(token: &Token, expected_type: &TokenTypeIdentifierType) -> bool {
+        match token {
+            Token::Bool(_) => {
+                matches!(expected_type, TokenTypeIdentifierType::Bool)
+            },
+            Token::Number(_) => {
+                matches!(expected_type, TokenTypeIdentifierType::Number)
+            },
+            Token::String(_) => {
+                matches!(expected_type, TokenTypeIdentifierType::String)
+            },
+            _ => panic!("{} is not a primitive and therefore it's type cannot be checked", token.to_string())
+        }
+    }
+
     pub fn generate_from_collective(&self, children: &Vec<Statement>) -> String {
         let mut result = String::new();
 
@@ -53,47 +68,16 @@ impl Generator {
                                     let actual_arg = &object.arguments[i];
                                     
                                     // Check if actual and defined are the same type and if so check if the definition specifies it as an inline or a child
-                                    match actual_arg {
-                                        Token::Bool(_) => {
-                                            if let TokenTypeIdentifierType::Bool = defined_arg.1 {
-                                                match defined_arg.2 {
-                                                    TokenDefinitionType::InlineArg => {
-                                                        inlines.push((defined_arg.0.clone(), actual_arg.value_to_string()));
-                                                    },
-                                                    TokenDefinitionType::ChildArg => {
-                                                        children.push((defined_arg.0.clone(), actual_arg.value_to_string()));
-                                                    },
-                                                    _ => panic!("expected either an InlineArg or a ChildArg, got {}", defined_arg.2.to_string())
-                                                }
-                                            }
-                                        },
-                                        Token::String(_) => {
-                                            if let TokenTypeIdentifierType::String = defined_arg.1 {
-                                                match defined_arg.2 {
-                                                    TokenDefinitionType::InlineArg => {
-                                                        inlines.push((defined_arg.0.clone(), actual_arg.value_to_string()))
-                                                    },
-                                                    TokenDefinitionType::ChildArg => {
-                                                        children.push((defined_arg.0.clone(), actual_arg.value_to_string()))
-                                                    },
-                                                    _ => panic!("expected either an InlineArg or a ChildArg, got {}", defined_arg.2.to_string())
-                                                }
-                                            }
-                                        },
-                                        Token::Number(_) => {
-                                            if let TokenTypeIdentifierType::Number = defined_arg.1 {
-                                                match defined_arg.2 {
-                                                    TokenDefinitionType::InlineArg => {
-                                                        inlines.push((defined_arg.0.clone(), actual_arg.value_to_string()))
-                                                    },
-                                                    TokenDefinitionType::ChildArg => {
-                                                        children.push((defined_arg.0.clone(), actual_arg.value_to_string()))
-                                                    },
-                                                    _ => panic!("expected either an InlineArg or a ChildArg, got {}", defined_arg.2.to_string())
-                                                }
-                                            }
-                                        },
-                                        _ => panic!("expected a Number, String, or Bool, got {}", actual_arg.to_string())
+                                    if Generator::is_valid_type(&actual_arg, &defined_arg.1) {
+                                        match defined_arg.2 {
+                                            TokenDefinitionType::InlineArg => {
+                                                inlines.push((defined_arg.0.clone(), actual_arg.value_to_string()));
+                                            },
+                                            TokenDefinitionType::ChildArg => {
+                                                children.push((defined_arg.0.clone(), actual_arg.value_to_string()));
+                                            },
+                                            _ => panic!("expected either an InlineArg or a ChildArg, got {}", defined_arg.2.to_string())
+                                        }
                                     }
                                 }
 
@@ -103,51 +87,20 @@ impl Generator {
 
                                     if let Some(defined_prop) = defined_prop {
                                         // Check if actual and defined are the same type and if so check if the definition specifies it as an inline or a child
-                                        match actual_prop {
-                                            Token::Bool(_) => {
-                                                if let TokenTypeIdentifierType::Bool = defined_prop.0 {
-                                                    match defined_prop.1 {
-                                                        TokenDefinitionType::InlineProp => {
-                                                            inlines.push((setter.name.clone(), actual_prop.value_to_string()));
-                                                        },
-                                                        TokenDefinitionType::ChildProp => {
-                                                            children.push((setter.name.clone(), actual_prop.value_to_string()));
-                                                        },
-                                                        _ => panic!("expected either an InlineArg or a ChildArg, got {}", defined_prop.1.to_string())
-                                                    }
-                                                }
-                                            },
-                                            Token::String(_) => {
-                                                if let TokenTypeIdentifierType::String = defined_prop.0 {
-                                                    match defined_prop.1 {
-                                                        TokenDefinitionType::InlineProp => {
-                                                            inlines.push((setter.name.clone(), actual_prop.value_to_string()))
-                                                        },
-                                                        TokenDefinitionType::ChildProp => {
-                                                            children.push((setter.name.clone(), actual_prop.value_to_string()))
-                                                        },
-                                                        _ => panic!("expected either an InlineArg or a ChildArg, got {}", defined_prop.1.to_string())
-                                                    }
-                                                }
-                                            },
-                                            Token::Number(_) => {
-                                                if let TokenTypeIdentifierType::Number = defined_prop.0 {
-                                                    match defined_prop.1 {
-                                                        TokenDefinitionType::InlineProp => {
-                                                            inlines.push((setter.name.clone(), actual_prop.value_to_string()))
-                                                        },
-                                                        TokenDefinitionType::ChildProp => {
-                                                            children.push((setter.name.clone(), actual_prop.value_to_string()))
-                                                        },
-                                                        _ => panic!("expected either an InlineArg or a ChildArg, got {}", defined_prop.1.to_string())
-                                                    }
-                                                }
-                                            },
-                                            _ => panic!("expected a Number, String, or Bool, got {}", actual_prop.to_string())
+                                        if Generator::is_valid_type(&actual_prop, &defined_prop.0) {
+                                            match defined_prop.1 {
+                                                TokenDefinitionType::InlineProp => {
+                                                    inlines.push((setter.name.clone(), actual_prop.value_to_string()));
+                                                },
+                                                TokenDefinitionType::ChildProp => {
+                                                    children.push((setter.name.clone(), actual_prop.value_to_string()));
+                                                },
+                                                _ => panic!("expected either an InlineArg or a ChildArg, got {}", defined_prop.1.to_string())
+                                            }
                                         }
                                     }
-
                                 }
+
                                 // Generate from the vectors of inlines and children
 
                                 result += "<object class=\"";
