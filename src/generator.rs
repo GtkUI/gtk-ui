@@ -11,10 +11,6 @@ use std::fs::File;
 use std::io::Write;
 use std::collections::HashMap;
 
-/*
-Okay jackass, here's the idea. You are going to define a few new things. First is a struct called CachedRawDefinition which will have a HashMap<String, Type> of props and a Vec<(name: String, definition: String)> of args. Second is an enum called CachedDefinition which will have two values Raw(CacheRawDefinition) and Collective(String). With these two new definitions you will define a property on your Generator called definitions which will be a HashMap<String, CacheDefinition>. The only idea I think I will forget is that you will cache your collective definitions as strings because those are static and will not be able to take any arguments which is exactly why the CachedDefintion enum has a string value for the Collective type. Finally, you will define two functions, generate_from_collective and generate_from_raw. The former will be what the root defintion's children is passed into as well as any collective defintions, of course. This function will return a string and that should be *moved* into the HashMap AFTER appending to the string. That whole process won't happen if the collective definition preexists in the definitions HashMap, of course. Okay that's it. Good night!
-*/
-
 #[derive(Debug)]
 pub struct CachedRawDefinition {
     props: HashMap<String, (TokenTypeIdentifierType, TokenDefinitionType)>,
