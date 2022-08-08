@@ -2,6 +2,7 @@ use std::fs;
 use std::env;
 use std::process;
 
+mod macros;
 mod lexer;
 mod parser;
 mod preprocessor;

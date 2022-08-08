@@ -1,9 +1,6 @@
 // Crates
+
 use unescape::unescape;
-
-// Macros
-
-macro_rules! name_range{() => {'a'..='z' | 'A'..='Z' | '-' | '_'}}
 
 // Tokens
 
@@ -302,7 +299,7 @@ impl Lexer {
                             panic!("Unexpected token '/'");
                         }
                     },
-                    _ => Token::Number(-1),
+                    _ => panic!("unrecognized character '{}'", c),
                 };
                 self.tokens.push(token);
             } else {
