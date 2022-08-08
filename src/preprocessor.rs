@@ -11,6 +11,10 @@ fn path_exists(path: &String) -> bool {
     fs::metadata(path).is_ok()
 }
 
+// TODO: Warn about a file being included multiple times.
+// At the moment, regardless of where the library is included, if it is included twice, everything defined in the library is redefined
+// This is of course very easily avoidable, but for user friendliness, a notification about this would be nice
+
 pub struct Preprocessor {
     pub statements: Vec<Statement>,
 }

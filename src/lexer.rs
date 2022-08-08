@@ -1,3 +1,8 @@
+// Crates
+use unescape::unescape;
+
+// Macros
+
 macro_rules! name_range{() => {'a'..='z' | 'A'..='Z' | '-' | '_'}}
 
 // Tokens
@@ -60,6 +65,15 @@ impl Token {
             Token::StartArgList => "(",
             Token::EndArgList => ")",
             Token::ArgListDeliminator => ","
+        }
+    }
+    
+    pub fn value_to_string(&self) -> String {
+        match self {
+            Token::String(string) => string.to_string(),
+            Token::Number(number) => number.to_string(),
+            Token::Bool(boolean) => boolean.to_string(),
+            _ => todo!("not implemented yet, but not needed yet!")
         }
     }
 }
@@ -157,10 +171,17 @@ impl Lexer {
 
     fn string(&mut self) -> Token {
         let mut string = String::new();
-        for c in self.input[(self.index + 1)..].chars() {
+        self.index += 1;
+        loop {
+            let c = self.input.chars().nth(self.index).unwrap();
             match c {
-                '"' => {
+                '\\' => {
+                    string.push(c);
+                    string.push(self.input.chars().nth(self.index + 1).unwrap());
                     self.index += 2;
+                },
+                '"' => {
+                    self.index += 1;
                     break
                 },
                 '\n' => {
@@ -173,7 +194,7 @@ impl Lexer {
             }
         }
 
-        Token::String(string)
+        Token::String(unescape(string.as_str()).unwrap())
     }
 
     fn setter(&mut self) -> Token {

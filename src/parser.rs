@@ -5,14 +5,15 @@ use super::lexer::{
     IdentifierType as TokenIdentifierType,
     TypeIdentifierType as TokenTypeIdentifierType
 };
+use std::path::Path;
 
 // Statement
 
 #[derive(Debug)]
 pub struct Property {
-    internal_type: TokenTypeIdentifierType,
-    name: String,
-    definition_type: TokenDefinitionType
+    pub internal_type: TokenTypeIdentifierType,
+    pub name: String,
+    pub definition_type: TokenDefinitionType
 }
 
 #[derive(Debug)]
@@ -24,23 +25,23 @@ pub enum DefinitionType {
 
 #[derive(Debug)]
 pub struct Definition {
-    name: String,
-    children: Vec<Statement>,
-    definition_type: DefinitionType
+    pub name: String,
+    pub children: Vec<Statement>,
+    pub definition_type: DefinitionType
 }
 
 #[derive(Debug)]
 pub struct Setter {
-    name: String,
-    value: Token
+    pub name: String,
+    pub value: Token
 }
 
 #[derive(Debug)]
 pub struct Object {
-    name: String,
-    children: Vec<Statement>,
-    arguments: Vec<Token>,
-    setters: Vec<Setter>
+    pub name: String,
+    pub children: Vec<Statement>,
+    pub arguments: Vec<Token>,
+    pub setters: Vec<Setter>
 }
 
 #[derive(Debug)]
@@ -142,7 +143,8 @@ impl Parser {
                     DefinitionType::Raw
                 } else if block.iter().all(|x| matches!(x, Statement::Object(_))) {
                     if name == "root" {
-                        DefinitionType::Root(self.filename.clone())
+                        let path = Path::new(&self.filename);
+                        DefinitionType::Root(path.file_stem().expect("invalid file path").to_str().expect("failed to unwrap file path string").to_string())
                     } else {
                         DefinitionType::Collective
                     }
