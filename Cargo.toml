@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 unescape = "0.1.0"
+log = "0.4"
+fern = "0.6"
