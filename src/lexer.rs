@@ -1,6 +1,7 @@
 // Crates
 
 use unescape::unescape;
+use log::{error};
 
 // Tokens
 
@@ -45,6 +46,13 @@ pub enum Token {
     StartArgList,               // (
     EndArgList,                 // )
     ArgListDeliminator,         // ,
+}
+
+// Position
+
+pub struct Position {
+    line: i32,
+    character: i32
 }
 
 impl Token {
@@ -129,63 +137,86 @@ impl DirectiveType {
 pub struct Lexer {
     pub tokens: Vec<Token>,
     index: usize,
-    input: String
+    input: String,
+    position: Position
 }
 
 impl Lexer {
+
+    // Helper Functions
+
+    #[inline]
+    fn move_foward(&mut self) {
+        self.index += 1;
+        self.position.character += 1;
+    }
+
+    #[inline]
+    fn move_forward_n(&mut self, n: usize) {
+        self.index += n;
+        self.position.character += n as i32;
+    }
+
+    #[inline]
+    fn error(&self, message: &str) {
+        error!("{message} (line {}, char {})", self.position.line, self.position.character)
+    }
+
     // Lexing Functions
+
     fn definition(&mut self) -> Token {
         let mut definition = String::new();
-        self.index += 1;
+        self.move_foward();
         for c in self.input[self.index..].chars() {
             match c {
                 name_range!() => {
                     definition.push(c);
-                    self.index += 1;
                 },
                 _ => break
             }
         }
 
+        self.move_forward_n(definition.len());
         DefinitionType::from(&definition)
     }
 
     fn directive(&mut self) -> Token {
         let mut directive = String::new();
-        self.index += 1;
+        self.move_foward();
         for c in self.input[self.index..].chars() {
             match c {
                 name_range!() => {
                     directive.push(c);
-                    self.index += 1;
                 },
                 _ => break
             }
         }
-        
+
+        self.move_forward_n(directive.len());
         DirectiveType::from(&directive)
     }
 
     fn string(&mut self) -> Token {
         let mut string = String::new();
-        self.index += 1;
+        self.move_foward();
         loop {
             let c = self.input.chars().nth(self.index).unwrap();
             match c {
                 '\\' => {
                     string.push(c);
                     string.push(self.input.chars().nth(self.index + 1).unwrap());
-                    self.index += 2;
+                    self.move_forward_n(2);
                 },
                 '"' => {
-                    self.index += 1;
+                    self.move_foward();
                     break
                 },
                 '\n' => {
-                    panic!("unexpected end of string");
+                    self.error("unexpected end of string");
+                    std::process::exit(1);
                 },
                 _ => {
-                    self.index += 1;
+                    self.move_foward();
                     string.push(c);
                 }
             }
@@ -196,17 +227,17 @@ impl Lexer {
 
     fn setter(&mut self) -> Token {
         let mut setter = String::new();
-        self.index += 1;
+        self.move_foward();
         for c in self.input[self.index..].chars() {
             match c {
                 name_range!() => {
                     setter.push(c);
-                    self.index += 1;
                 },
                 _ => break
             }
         }
 
+        self.move_forward_n(setter.len());
         Token::Setter(setter)
     }
 
@@ -217,26 +248,32 @@ impl Lexer {
                 break
             }
             number.push(c);
-            self.index += 1;
         }
+
+        self.move_forward_n(number.len());
 
         match number.parse::<i32>() {
             Ok(num) => Token::Number(num),
-            Err(e) => panic!("{e}")
+            Err(e) => {
+                self.error(e.to_string().as_str());
+                std::process::exit(1);
+            }
         }
     }
 
+    // TODO: Rename this function to include its use with parsing booleans
     fn identifier(&mut self) -> Token {
         let mut identifier = String::new();
         for c in self.input[self.index..].chars() {
             match c {
                 name_range!() => {
-                    self.index += 1;
                     identifier.push(c);
                 },
                 _ => break
             }
         }
+
+        self.move_forward_n(identifier.len());
 
         match identifier.as_str() {
             "true"   => Token::Bool(1),
@@ -249,19 +286,22 @@ impl Lexer {
     }
 
     fn add_and_move(&mut self, token: Token) -> Token {
-        self.index += 1;
+        self.move_foward();
         token
     }
 
-    fn comment(&mut self) -> bool {
-        for c in self.input[self.index..].chars() {
-            self.index += 1;
-            if c == '\n' {
-                return true;
+    fn comment(&mut self) {
+        loop {
+            let c = self.input.chars().nth(self.index);
+            if let Some(c) = c {
+                if c == '\n' {
+                    break
+                }
+                self.move_foward();
+            } else {
+                break;
             }
         }
-
-        return false;
     }
 
     // Pubs
@@ -269,7 +309,8 @@ impl Lexer {
         Self {
             tokens: Vec::new(),
             index: 0,
-            input: s, 
+            input: s,
+            position: Position { line: 0, character: 0 }
         }
     }
     pub fn lex(&mut self) {
@@ -289,15 +330,12 @@ impl Lexer {
                     '('           => self.add_and_move(Token::StartArgList),
                     ')'           => self.add_and_move(Token::EndArgList),
                     ' ' | '\n'    => {
-                        self.index += 1;
+                        self.move_foward();
                         continue
                     },
                     '/' => {
-                        if self.comment() {
-                            continue
-                        } else {
-                            panic!("Unexpected token '/'");
-                        }
+                        self.comment();
+                        continue
                     },
                     _ => panic!("unrecognized character '{}'", c),
                 };
