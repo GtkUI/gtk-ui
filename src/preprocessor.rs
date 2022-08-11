@@ -3,6 +3,7 @@ use super::parser::{
     Parser,
     Statement
 };
+use super::util::check_error;
 use std::fs;
 
 const LIB_PATH: &str =  "./libs";
@@ -45,7 +46,7 @@ impl Preprocessor {
                     }
                 
                     let mut lexer = Lexer::new(file_content);
-                    lexer.lex();
+                    check_error(lexer.lex());
                     let mut parser = Parser::new(lexer.tokens, included_files.last().unwrap().clone());
                     parser.parse();
 

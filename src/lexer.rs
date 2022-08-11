@@ -1,7 +1,6 @@
 // Crates
 
 use unescape::unescape;
-use log::{error};
 
 // Tokens
 
@@ -50,9 +49,10 @@ pub enum Token {
 
 // Position
 
+#[derive(Clone)]
 pub struct Position {
-    line: i32,
-    character: i32
+    pub line: i32,
+    pub character: i32
 }
 
 impl Token {
@@ -157,14 +157,9 @@ impl Lexer {
         self.position.character += n as i32;
     }
 
-    #[inline]
-    fn error(&self, message: &str) {
-        error!("{message} (line {}, char {})", self.position.line, self.position.character)
-    }
-
     // Lexing Functions
 
-    fn definition(&mut self) -> Token {
+    fn definition(&mut self) -> Result<Token, (String, Position)> {
         let mut definition = String::new();
         self.move_foward();
         for c in self.input[self.index..].chars() {
@@ -177,10 +172,10 @@ impl Lexer {
         }
 
         self.move_forward_n(definition.len());
-        DefinitionType::from(&definition)
+        Ok(DefinitionType::from(&definition))
     }
 
-    fn directive(&mut self) -> Token {
+    fn directive(&mut self) -> Result<Token, (String, Position)> {
         let mut directive = String::new();
         self.move_foward();
         for c in self.input[self.index..].chars() {
@@ -193,10 +188,10 @@ impl Lexer {
         }
 
         self.move_forward_n(directive.len());
-        DirectiveType::from(&directive)
+        Ok(DirectiveType::from(&directive))
     }
 
-    fn string(&mut self) -> Token {
+    fn string(&mut self) -> Result<Token, (String, Position)> {
         let mut string = String::new();
         self.move_foward();
         loop {
@@ -212,8 +207,7 @@ impl Lexer {
                     break
                 },
                 '\n' => {
-                    self.error("unexpected end of string");
-                    std::process::exit(1);
+                    return Err(( String::from("unexpected end of string input"), self.position.clone() ));
                 },
                 _ => {
                     self.move_foward();
@@ -222,10 +216,13 @@ impl Lexer {
             }
         }
 
-        Token::String(unescape(string.as_str()).unwrap())
+        match unescape(string.as_str()) {
+            Some(string) => Ok(Token::String(string)),
+            None => Err(( String::from("unable to escape string"), self.position.clone() ))
+        }
     }
 
-    fn setter(&mut self) -> Token {
+    fn setter(&mut self) -> Result<Token, (String, Position)> {
         let mut setter = String::new();
         self.move_foward();
         for c in self.input[self.index..].chars() {
@@ -238,10 +235,10 @@ impl Lexer {
         }
 
         self.move_forward_n(setter.len());
-        Token::Setter(setter)
+        Ok(Token::Setter(setter))
     }
 
-    fn number(&mut self) -> Token {
+    fn number(&mut self) -> Result<Token, (String, Position)> {
         let mut number = String::new();
         for c in self.input[self.index..].chars() {
             if ! c.is_digit(10) {
@@ -253,16 +250,13 @@ impl Lexer {
         self.move_forward_n(number.len());
 
         match number.parse::<i32>() {
-            Ok(num) => Token::Number(num),
-            Err(e) => {
-                self.error(e.to_string().as_str());
-                std::process::exit(1);
-            }
+            Ok(num) => Ok(Token::Number(num)),
+            Err(e) => Err((e.to_string(), self.position.clone()))
         }
     }
 
     // TODO: Rename this function to include its use with parsing booleans
-    fn identifier(&mut self) -> Token {
+    fn identifier(&mut self) -> Result<Token, (String, Position)> {
         let mut identifier = String::new();
         for c in self.input[self.index..].chars() {
             match c {
@@ -275,19 +269,21 @@ impl Lexer {
 
         self.move_forward_n(identifier.len());
 
-        match identifier.as_str() {
-            "true"   => Token::Bool(1),
-            "false"  => Token::Bool(0),
-            "String" => Token::Identifier(IdentifierType::Type(TypeIdentifierType::String)),
-            "Number" => Token::Identifier(IdentifierType::Type(TypeIdentifierType::Number)),
-            "Bool"   => Token::Identifier(IdentifierType::Type(TypeIdentifierType::Bool)),
-            _        => Token::Identifier(IdentifierType::Generic(identifier))
-        }
+        Ok(
+            match identifier.as_str() {
+                "true"   => Token::Bool(1),
+                "false"  => Token::Bool(0),
+                "String" => Token::Identifier(IdentifierType::Type(TypeIdentifierType::String)),
+                "Number" => Token::Identifier(IdentifierType::Type(TypeIdentifierType::Number)),
+                "Bool"   => Token::Identifier(IdentifierType::Type(TypeIdentifierType::Bool)),
+                _        => Token::Identifier(IdentifierType::Generic(identifier))
+            }
+        )
     }
 
-    fn add_and_move(&mut self, token: Token) -> Token {
+    fn add_and_move(&mut self, token: Token) -> Result<Token, (String, Position)> {
         self.move_foward();
-        token
+        Ok(token)
     }
 
     fn comment(&mut self) {
@@ -295,7 +291,7 @@ impl Lexer {
             let c = self.input.chars().nth(self.index);
             if let Some(c) = c {
                 if c == '\n' {
-                    break
+                    break;
                 }
                 self.move_foward();
             } else {
@@ -313,7 +309,7 @@ impl Lexer {
             position: Position { line: 0, character: 0 }
         }
     }
-    pub fn lex(&mut self) {
+    pub fn lex(&mut self) -> Result<(), (String, Position)> {
         loop {
             let input_char = self.input.chars().nth(self.index);
             if let Some(c) = input_char {
@@ -337,11 +333,15 @@ impl Lexer {
                         self.comment();
                         continue
                     },
-                    _ => panic!("unrecognized character '{}'", c),
+                    _ => Err((format!("unrecognized character '{}'", c), self.position.clone())),
                 };
-                self.tokens.push(token);
+
+                match token {
+                    Ok(token) => self.tokens.push(token),
+                    Err(err) => return Err(err)
+                }
             } else {
-                break;
+                return Ok(());
             }
         }
     }
