@@ -85,7 +85,7 @@ pub struct Parser {
 impl Parser {
     // Parsing Functions
 
-    fn block(&mut self) -> Vec<Statement> {
+    fn block(&mut self) -> Result<Vec<Statement>, (String, Position)> {
         let token = &self.tokens[self.index];
         if let TokenValue::StartBlock = token.value {
             self.index += 1;
@@ -96,19 +96,23 @@ impl Parser {
                     self.index += 1;
                     break;
                 }
-                let statement = self.parse_statement();
-                match &statement.value {
-                    StatementValue::Property(_) | StatementValue::Object(_) => statements.push(statement),
-                    _ => panic!("found {} inside block. Only properties and objects are allowed here.", statement.to_string()),
+                match self.parse_statement() {
+                    Ok(statement) => {
+                        match &statement.value {
+                            StatementValue::Property(_) | StatementValue::Object(_) => statements.push(statement),
+                            _ => panic!("found {} inside block. Only properties and objects are allowed here.", statement.to_string()),
+                        }
+                    },
+                    Err(err) => return Err(err)
                 }
             }
-            statements
+            Ok(statements)
         } else {
             panic!("expected the start of a block, got {}", token.to_string());
         }
     }
 
-    fn arglist(&mut self) -> Vec<Token> {
+    fn arglist(&mut self) -> Result<Vec<Token>, (String, Position)> {
         let token = &self.tokens[self.index];
         if let TokenValue::StartArgList = token.value {
             let mut args: Vec<Token> = Vec::new();
@@ -136,71 +140,78 @@ impl Parser {
                 }
             }
             self.index += 1;
-            args
+            Ok(args)
         } else {
             panic!("expected start of argument list, found {}", token.to_string());
         }
     }
 
-    fn definition(&mut self, definition_type: TokenDefinitionType, position: Position) -> Statement {
+    fn definition(&mut self, definition_type: TokenDefinitionType, position: Position) -> Result<Statement, (String, Position)> {
         self.index += 1;
         if let TokenDefinitionType::Object(name) = definition_type {
-            let block = self.block();
-            let definition_type = {
-                if block.iter().all(|x| matches!(&x.value, StatementValue::Property(_))) {
-                    DefinitionType::Raw
-                } else if block.iter().all(|x| matches!(&x.value, StatementValue::Object(_))) {
-                    if name == "root" {
-                        let path = Path::new(&self.filename);
-                        DefinitionType::Root(path.file_stem().expect("invalid file path").to_str().expect("failed to unwrap file path string").to_string())
-                    } else {
-                        DefinitionType::Collective
-                    }
-                } else {
-                    panic!("a definition can only have all property definitions or all objects");
-                }
-            };
+            match self.block() {
+                Ok(block) => {
+                    let definition_type = {
+                        if block.iter().all(|x| matches!(&x.value, StatementValue::Property(_))) {
+                            DefinitionType::Raw
+                        } else if block.iter().all(|x| matches!(&x.value, StatementValue::Object(_))) {
+                            if name == "root" {
+                                let path = Path::new(&self.filename);
+                                DefinitionType::Root(path.file_stem().expect("invalid file path").to_str().expect("failed to unwrap file path string").to_string())
+                            } else {
+                                DefinitionType::Collective
+                            }
+                        } else {
+                            panic!("a definition can only have all property definitions or all objects");
+                        }
+                    };
 
-            let definition = Definition {
-                name: name.to_string(),
-                children: block,
-                definition_type
-            };
+                    let definition = Definition {
+                        name: name.to_string(),
+                        children: block,
+                        definition_type
+                    };
 
-            Statement {
-                value: StatementValue::Definition(definition),
-                position: position.clone()
+                    Ok(Statement {
+                        value: StatementValue::Definition(definition),
+                        position: position.clone()
+                    })
+                },
+                Err(err) => return Err(err)
             }
         } else {
-            let arglist = self.arglist();
-            
-            if arglist.len() != 2 {
-                panic!("expected only 2 arguments, found {} args", arglist.len());
-            }
-            
-            let name = &arglist[0];
-            if let TokenValue::String(name) = &name.value {
-                let internal_type = &arglist[1];
-                if let TokenValue::Identifier(TokenIdentifierType::Type(internal_type)) = &internal_type.value {
-                    let property = Property {
-                        name: name.clone(),
-                        internal_type: internal_type.clone(),
-                        definition_type: definition_type.clone()
-                    };
-                    Statement {
-                        value: StatementValue::Property(property),
-                        position: position.clone()
+            match self.arglist() {
+                Ok(arglist) => {
+                    if arglist.len() != 2 {
+                        panic!("expected only 2 arguments, found {} args", arglist.len());
                     }
-                } else {
-                    panic!("expected type identifier, found {}", internal_type.to_string());
-                }
-            } else {
-                panic!("expected String, found {}", name.to_string());
+                    
+                    let name = &arglist[0];
+                    if let TokenValue::String(name) = &name.value {
+                        let internal_type = &arglist[1];
+                        if let TokenValue::Identifier(TokenIdentifierType::Type(internal_type)) = &internal_type.value {
+                            let property = Property {
+                                name: name.clone(),
+                                internal_type: internal_type.clone(),
+                                definition_type: definition_type.clone()
+                            };
+                            Ok(Statement {
+                                value: StatementValue::Property(property),
+                                position: position.clone()
+                            })
+                        } else {
+                            panic!("expected type identifier, found {}", internal_type.to_string());
+                        }
+                    } else {
+                        panic!("expected String, found {}", name.to_string());
+                    }
+                },
+                Err(err) => return Err(err)
             }
         }
     }
 
-    fn directive(&mut self, directive_type: TokenDirectiveType, position: Position) -> Statement {
+    fn directive(&mut self, directive_type: TokenDirectiveType, position: Position) -> Result<Statement, (String, Position)> {
         self.index += 1;
         let directive_argument_token = &self.tokens[self.index];
         if let TokenValue::String(arg) = &directive_argument_token.value {
@@ -213,16 +224,16 @@ impl Parser {
                     StatementValue::Include(arg.clone())
                 }
             };
-            Statement {
+            Ok(Statement {
                 value,
                 position: position.clone()
-            }
+            })
         } else {
             panic!("expected string, found {}", directive_argument_token.to_string());
         }
     }
 
-    fn object(&mut self, identifier_type: TokenIdentifierType, position: Position) -> Statement {
+    fn object(&mut self, identifier_type: TokenIdentifierType, position: Position) -> Result<Statement, (String, Position)> {
         if let TokenIdentifierType::Generic(name) = identifier_type {
             self.index += 1;
             let token = &self.tokens[self.index];
@@ -232,15 +243,25 @@ impl Parser {
             
             match token.value {
                 TokenValue::StartArgList => {
-                    arguments = self.arglist();
-                    
-                    let token = &self.tokens[self.index];
-                    if let TokenValue::StartBlock = token.value {
-                        children = self.block();
+                    match self.arglist() {
+                        Ok(args) => {
+                            arguments = args;
+                            let token = &self.tokens[self.index];
+                            if let TokenValue::StartBlock = token.value {
+                                match self.block() {
+                                    Ok(c) => children = c,
+                                    Err(e) => return Err(e)
+                                }
+                            }
+                        },
+                        Err(err) => return Err(err)
                     }
                 },
                 TokenValue::StartBlock => {
-                    children = self.block();
+                    match self.block() {
+                        Ok(c) => children = c,
+                        Err(e) => return Err(e)
+                    }
                 },
                 _ => panic!("expected the start of an argument list or block, found '{}'", token.to_string())
             }
@@ -254,21 +275,25 @@ impl Parser {
                         self.index += 1;
 
                         let name = name.clone();
-                        let args = self.arglist();
-                        if args.len() != 1 {
-                            panic!("expected 1 argument, got {}", args.len());
-                        }
+                        match self.arglist() {
+                            Ok(args) => {
+                                if args.len() != 1 {
+                                    panic!("expected 1 argument, got {}", args.len());
+                                }
 
-                        let value = &args[0];
+                                let value = &args[0];
 
-                        match value.value {
-                            TokenValue::Number(_) | TokenValue::String(_) | TokenValue::Bool(_) => {
-                                setters.push(Setter {
-                                    name: name,
-                                    value: value.clone()
-                                })
+                                match value.value {
+                                    TokenValue::Number(_) | TokenValue::String(_) | TokenValue::Bool(_) => {
+                                        setters.push(Setter {
+                                            name: name,
+                                            value: value.clone()
+                                        })
+                                    },
+                                    _ => panic!("expected Number, String, or Bool, found {}", value.to_string())
+                                }
                             },
-                            _ => panic!("expected Number, String, or Bool, found {}", value.to_string())
+                            Err(err) => return Err(err)
                         }
                     },
                     _ => {
@@ -284,16 +309,16 @@ impl Parser {
                 setters
             };
 
-            Statement {
+            Ok(Statement {
                 value: StatementValue::Object(object),
                 position: position.clone()
-            }
+            })
         } else {
             panic!("expected generic identifier, found type identifier");
         }
     }
 
-    fn parse_statement(&mut self) -> Statement {
+    fn parse_statement(&mut self) -> Result<Statement, (String, Position)> {
         let token = &self.tokens[self.index];
         match &token.value {
             TokenValue::Definition(definition) => {
@@ -322,15 +347,19 @@ impl Parser {
         }
     }
 
-    pub fn parse(&mut self) {
+    pub fn parse(&mut self) -> Result<(), (String, Position)> {
         loop {
             if self.index >= self.tokens.len() {
-                break
+                break Ok(())
             }
-            let statement = self.parse_statement();
-            match &statement.value {
-                StatementValue::Definition(_) | StatementValue::Header(_) | StatementValue::Include(_) => self.statements.push(statement),
-                _ => panic!("found {} on top level. Only object definitions and directives are allowed here.", statement.to_string()),
+            match self.parse_statement() {
+                Ok(statement) => {
+                    match &statement.value {
+                        StatementValue::Definition(_) | StatementValue::Header(_) | StatementValue::Include(_) => self.statements.push(statement),
+                        _ => return Err(( format!("found {} on top level. Only object definitions and directives are allowed here.", statement.to_string()), statement.position )),
+                    }
+                },
+                Err(err) => return Err(err)
             }
         }
     }
