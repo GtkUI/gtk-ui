@@ -1,4 +1,7 @@
-use super::lexer::Lexer;
+use super::lexer::{
+    Lexer,
+    Position
+};
 use super::parser::{
     Parser,
     Statement,
@@ -24,7 +27,7 @@ pub struct Preprocessor {
 impl Preprocessor { 
 
     // Pubs
-    pub fn preprocess(&mut self, input: Vec<Statement>, included_files: Vec<String>) {
+    pub fn preprocess(&mut self, input: Vec<Statement>, included_files: Vec<String>) -> Result<(), (String, Position)> {
         for statement in input {
             match statement.value {
                 StatementValue::Include(path) => {
@@ -39,11 +42,11 @@ impl Preprocessor {
                         file_content = fs::read_to_string(&path).expect("could not read included file");
                         file_path = path;
                     } else {
-                        panic!("could not find file '{}' in lib directory or current working directory", path);
+                        return Err((format!("could not find file '{}' in lib directory or current working directory", path), Position { character: -1, line: -1 }));
                     }
 
                     if included_files.iter().any(|n| n == &file_path) {
-                        panic!("recursive include of '{}'", file_path);
+                        return Err((format!("recursive include of '{}'", file_path), Position { character: -1, line: -1 }));
                     }
                 
                     let mut lexer = Lexer::new(file_content);
@@ -54,13 +57,16 @@ impl Preprocessor {
                     let mut included_files = included_files.clone();
                     included_files.push(file_path);
 
-                    self.preprocess(parser.statements, included_files);
+                    if let Err(err) = self.preprocess(parser.statements, included_files) {
+                        return Err(err);
+                    }
                 },
                 _ => {
                     self.statements.push(statement);
                 }
             }
         }
+        Ok(())
     }
 
     pub fn new() -> Self {

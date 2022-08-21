@@ -39,7 +39,7 @@ fn main() {
     check_error(parser.parse());
 
     let mut preprocessor = Preprocessor::new();
-    preprocessor.preprocess(parser.statements, vec![filename.clone()]);
+    check_error(preprocessor.preprocess(parser.statements, vec![filename.clone()]));
     
     let mut generator = Generator::new(preprocessor.statements);
     generator.generate();
