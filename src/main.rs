@@ -36,7 +36,7 @@ fn main() {
     check_error(lexer.lex());
     
     let mut parser = Parser::new(lexer.tokens, filename.clone());
-    parser.parse();
+    check_error(parser.parse());
 
     let mut preprocessor = Preprocessor::new();
     preprocessor.preprocess(parser.statements, vec![filename.clone()]);

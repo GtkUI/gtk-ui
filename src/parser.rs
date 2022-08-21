@@ -85,8 +85,9 @@ pub struct Parser {
 impl Parser {
     // Parsing Functions
 
-    fn block(&mut self) -> Result<Vec<Statement>, (String, Position)> {
+    fn block(&mut self) -> Result<(Vec<Statement>, Position), (String, Position)> {
         let token = &self.tokens[self.index];
+        let position = token.position.clone();
         if let TokenValue::StartBlock = token.value {
             self.index += 1;
             let mut statements = Vec::new();
@@ -100,20 +101,21 @@ impl Parser {
                     Ok(statement) => {
                         match &statement.value {
                             StatementValue::Property(_) | StatementValue::Object(_) => statements.push(statement),
-                            _ => panic!("found {} inside block. Only properties and objects are allowed here.", statement.to_string()),
+                            _ => return Err((format!("found {} inside block. Only properties and objects are allowed here.", statement.to_string()), statement.position)),
                         }
                     },
                     Err(err) => return Err(err)
                 }
             }
-            Ok(statements)
+            Ok(( statements, position ))
         } else {
-            panic!("expected the start of a block, got {}", token.to_string());
+            Err((format!("expected the start of a block, got {}", token.to_string()), token.position))
         }
     }
 
-    fn arglist(&mut self) -> Result<Vec<Token>, (String, Position)> {
+    fn arglist(&mut self) -> Result<(Vec<Token>, Position), (String, Position)> {
         let token = &self.tokens[self.index];
+        let position = token.position.clone();
         if let TokenValue::StartArgList = token.value {
             let mut args: Vec<Token> = Vec::new();
             loop {
@@ -125,10 +127,10 @@ impl Parser {
                         if let TokenIdentifierType::Type(_) = identifier {
                             args.push(token.clone())
                         } else {
-                            panic!("found generic identifier, expected Number, String, Bool, or type identifier");
+                            return Err((format!("found generic identifier, expected Number, String, Bool, or type identifier"), token.position));
                         }
                     },
-                    _ => panic!("found {}, expected Number, String, Bool, or type identifier", token.to_string())
+                    _ => return Err((format!("found {}, expected Number, String, Bool, or type identifier", token.to_string()), token.position))
                 }
 
                 self.index += 1;
@@ -136,13 +138,13 @@ impl Parser {
                 match token.value {
                     TokenValue::ArgListDeliminator => continue,
                     TokenValue::EndArgList => break,
-                    _ => panic!("found '{}', expected ','", token.to_string())
+                    _ => return Err((format!("found '{}', expected ','", token.to_string()), token.position))
                 }
             }
             self.index += 1;
-            Ok(args)
+            Ok(( args, position ))
         } else {
-            panic!("expected start of argument list, found {}", token.to_string());
+            Err((format!("expected start of argument list, found {}", token.to_string()), token.position))
         }
     }
 
@@ -152,9 +154,9 @@ impl Parser {
             match self.block() {
                 Ok(block) => {
                     let definition_type = {
-                        if block.iter().all(|x| matches!(&x.value, StatementValue::Property(_))) {
+                        if block.0.iter().all(|x| matches!(&x.value, StatementValue::Property(_))) {
                             DefinitionType::Raw
-                        } else if block.iter().all(|x| matches!(&x.value, StatementValue::Object(_))) {
+                        } else if block.0.iter().all(|x| matches!(&x.value, StatementValue::Object(_))) {
                             if name == "root" {
                                 let path = Path::new(&self.filename);
                                 DefinitionType::Root(path.file_stem().expect("invalid file path").to_str().expect("failed to unwrap file path string").to_string())
@@ -162,13 +164,13 @@ impl Parser {
                                 DefinitionType::Collective
                             }
                         } else {
-                            panic!("a definition can only have all property definitions or all objects");
+                            return Err((String::from("a definition can only have all property definitions or all objects"), block.1));
                         }
                     };
 
                     let definition = Definition {
                         name: name.to_string(),
-                        children: block,
+                        children: block.0,
                         definition_type
                     };
 
@@ -182,13 +184,13 @@ impl Parser {
         } else {
             match self.arglist() {
                 Ok(arglist) => {
-                    if arglist.len() != 2 {
-                        panic!("expected only 2 arguments, found {} args", arglist.len());
+                    if arglist.0.len() != 2 {
+                        return Err((format!("expected only 2 arguments, found {} args", arglist.0.len()), arglist.1));
                     }
                     
-                    let name = &arglist[0];
+                    let name = &arglist.0[0];
                     if let TokenValue::String(name) = &name.value {
-                        let internal_type = &arglist[1];
+                        let internal_type = &arglist.0[1];
                         if let TokenValue::Identifier(TokenIdentifierType::Type(internal_type)) = &internal_type.value {
                             let property = Property {
                                 name: name.clone(),
@@ -200,10 +202,10 @@ impl Parser {
                                 position: position.clone()
                             })
                         } else {
-                            panic!("expected type identifier, found {}", internal_type.to_string());
+                            return Err((format!("expected type identifier, found {}", internal_type.to_string()), internal_type.position));
                         }
                     } else {
-                        panic!("expected String, found {}", name.to_string());
+                        return Err((format!("expected String, found {}", name.to_string()), name.position));
                     }
                 },
                 Err(err) => return Err(err)
@@ -229,7 +231,7 @@ impl Parser {
                 position: position.clone()
             })
         } else {
-            panic!("expected string, found {}", directive_argument_token.to_string());
+            Err((format!("expected string, found {}", directive_argument_token.to_string()), directive_argument_token.position))
         }
     }
 
@@ -245,11 +247,11 @@ impl Parser {
                 TokenValue::StartArgList => {
                     match self.arglist() {
                         Ok(args) => {
-                            arguments = args;
+                            arguments = args.0;
                             let token = &self.tokens[self.index];
                             if let TokenValue::StartBlock = token.value {
                                 match self.block() {
-                                    Ok(c) => children = c,
+                                    Ok(c) => children = c.0,
                                     Err(e) => return Err(e)
                                 }
                             }
@@ -259,11 +261,11 @@ impl Parser {
                 },
                 TokenValue::StartBlock => {
                     match self.block() {
-                        Ok(c) => children = c,
+                        Ok(c) => children = c.0,
                         Err(e) => return Err(e)
                     }
                 },
-                _ => panic!("expected the start of an argument list or block, found '{}'", token.to_string())
+                _ => return Err((format!("expected the start of an argument list or block, found '{}'", token.to_string()), token.position))
             }
 
             loop {
@@ -277,11 +279,11 @@ impl Parser {
                         let name = name.clone();
                         match self.arglist() {
                             Ok(args) => {
-                                if args.len() != 1 {
-                                    panic!("expected 1 argument, got {}", args.len());
+                                if args.0.len() != 1 {
+                                    return Err((format!("expected 1 argument, got {}", args.0.len()), args.1));
                                 }
 
-                                let value = &args[0];
+                                let value = &args.0[0];
 
                                 match value.value {
                                     TokenValue::Number(_) | TokenValue::String(_) | TokenValue::Bool(_) => {
@@ -290,14 +292,14 @@ impl Parser {
                                             value: value.clone()
                                         })
                                     },
-                                    _ => panic!("expected Number, String, or Bool, found {}", value.to_string())
+                                    _ => return Err((format!("expected Number, String, or Bool, found {}", value.to_string()), value.position))
                                 }
                             },
                             Err(err) => return Err(err)
                         }
                     },
                     _ => {
-                        panic!("expected setter, found {}", token.to_string());
+                        return Err((format!("expected setter, found {}", token.to_string()), token.position));
                     }
                 }
             }
@@ -314,7 +316,7 @@ impl Parser {
                 position: position.clone()
             })
         } else {
-            panic!("expected generic identifier, found type identifier");
+            Err((format!("expected generic identifier, found type identifier"), position))
         }
     }
 
@@ -333,7 +335,7 @@ impl Parser {
                 let identifier = identifier.clone();
                 self.object(identifier, token.position)
             },
-            _ => panic!("unexpected {}", token.to_string())
+            _ => Err(( format!("unexpected {}", token.to_string()), token.position ))
         }
     }
 
