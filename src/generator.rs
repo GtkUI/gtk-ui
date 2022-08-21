@@ -127,7 +127,7 @@ impl Generator {
                                 }
 
                                 if object.children.len() > 0 {
-                                    result += "<child>";
+                                    result += "<child>\n";
                                     result += self.generate_from_collective(&object.children).as_str();
                                     result += "</child>\n";
                                 }
