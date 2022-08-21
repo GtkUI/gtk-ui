@@ -5,7 +5,8 @@ use super::parser::{
 use super::lexer::{
     DefinitionType as TokenDefinitionType,
     TypeIdentifierType as TokenTypeIdentifierType,
-    Token
+    Token,
+    TokenValue
 };
 use std::fs::File;
 use std::io::Write;
@@ -33,14 +34,14 @@ pub struct Generator {
 impl Generator {
 
     fn is_valid_type(token: &Token, expected_type: &TokenTypeIdentifierType) -> bool {
-        match token {
-            Token::Bool(_) => {
+        match token.value {
+            TokenValue::Bool(_) => {
                 matches!(expected_type, TokenTypeIdentifierType::Bool)
             },
-            Token::Number(_) => {
+            TokenValue::Number(_) => {
                 matches!(expected_type, TokenTypeIdentifierType::Number)
             },
-            Token::String(_) => {
+            TokenValue::String(_) => {
                 matches!(expected_type, TokenTypeIdentifierType::String)
             },
             _ => panic!("{} is not a primitive and therefore it's type cannot be checked", token.to_string())

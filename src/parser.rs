@@ -1,5 +1,7 @@
 use super::lexer::{
     Token,
+    TokenValue,
+    Position,
     DefinitionType as TokenDefinitionType,
     DirectiveType as TokenDirectiveType,
     IdentifierType as TokenIdentifierType,
@@ -79,12 +81,12 @@ impl Parser {
 
     fn block(&mut self) -> Vec<Statement> {
         let token = &self.tokens[self.index];
-        if let Token::StartBlock = token {
+        if let TokenValue::StartBlock = token.value {
             self.index += 1;
             let mut statements = Vec::new();
             loop {
                 let token = &self.tokens[self.index];
-                if let Token::EndBlock = token {
+                if let TokenValue::EndBlock = token.value {
                     self.index += 1;
                     break;
                 }
@@ -102,14 +104,14 @@ impl Parser {
 
     fn arglist(&mut self) -> Vec<Token> {
         let token = &self.tokens[self.index];
-        if let Token::StartArgList = token {
+        if let TokenValue::StartArgList = token.value {
             let mut args: Vec<Token> = Vec::new();
             loop {
                 self.index += 1;
                 let token = &self.tokens[self.index];
-                match token {
-                    Token::Number(_) | Token::String(_) | Token::Bool(_) => args.push(token.clone()),
-                    Token::Identifier(identifier) => {
+                match &token.value {
+                    TokenValue::Number(_) | TokenValue::String(_) | TokenValue::Bool(_) => args.push(token.clone()),
+                    TokenValue::Identifier(identifier) => {
                         if let TokenIdentifierType::Type(_) = identifier {
                             args.push(token.clone())
                         } else {
@@ -121,9 +123,9 @@ impl Parser {
 
                 self.index += 1;
                 let token = &self.tokens[self.index];
-                match token {
-                    Token::ArgListDeliminator => continue,
-                    Token::EndArgList => break,
+                match token.value {
+                    TokenValue::ArgListDeliminator => continue,
+                    TokenValue::EndArgList => break,
                     _ => panic!("found '{}', expected ','", token.to_string())
                 }
             }
@@ -168,9 +170,9 @@ impl Parser {
             }
             
             let name = &arglist[0];
-            if let Token::String(name) = name {
+            if let TokenValue::String(name) = &name.value {
                 let internal_type = &arglist[1];
-                if let Token::Identifier(TokenIdentifierType::Type(internal_type)) = internal_type {
+                if let TokenValue::Identifier(TokenIdentifierType::Type(internal_type)) = &internal_type.value {
                     let property = Property {
                         name: name.clone(),
                         internal_type: internal_type.clone(),
@@ -189,7 +191,7 @@ impl Parser {
     fn directive(&mut self, directive_type: TokenDirectiveType) -> Statement {
         self.index += 1;
         let directive_argument_token = &self.tokens[self.index];
-        if let Token::String(arg) = directive_argument_token {
+        if let TokenValue::String(arg) = &directive_argument_token.value {
             self.index += 1;
             match directive_type {
                 TokenDirectiveType::Header => {
@@ -212,16 +214,16 @@ impl Parser {
             let mut children = Vec::new();
             let mut setters = Vec::new();
             
-            match token {
-                Token::StartArgList => {
+            match token.value {
+                TokenValue::StartArgList => {
                     arguments = self.arglist();
                     
                     let token = &self.tokens[self.index];
-                    if let Token::StartBlock = token {
+                    if let TokenValue::StartBlock = token.value {
                         children = self.block();
                     }
                 },
-                Token::StartBlock => {
+                TokenValue::StartBlock => {
                     children = self.block();
                 },
                 _ => panic!("expected the start of an argument list or block, found '{}'", token.to_string())
@@ -230,9 +232,9 @@ impl Parser {
             loop {
                 let token = &self.tokens[self.index];
                 
-                match token {
-                    Token::Identifier(_) | Token::EndBlock => break,
-                    Token::Setter(name) => {
+                match &token.value {
+                    TokenValue::Identifier(_) | TokenValue::EndBlock => break,
+                    TokenValue::Setter(name) => {
                         self.index += 1;
 
                         let name = name.clone();
@@ -243,8 +245,8 @@ impl Parser {
 
                         let value = &args[0];
 
-                        match value {
-                            Token::Number(_) | Token::String(_) | Token::Bool(_) => {
+                        match value.value {
+                            TokenValue::Number(_) | TokenValue::String(_) | TokenValue::Bool(_) => {
                                 setters.push(Setter {
                                     name: name,
                                     value: value.clone()
@@ -274,20 +276,20 @@ impl Parser {
 
     fn parse_statement(&mut self) -> Statement {
         let token = &self.tokens[self.index];
-        match token {
-            Token::Definition(definition) => {
+        match &token.value {
+            TokenValue::Definition(definition) => {
                 let definition = definition.clone();
                 self.definition(definition)
             },
-            Token::Directive(directive) => {
+            TokenValue::Directive(directive) => {
                 let directive = directive.clone();
                 self.directive(directive)
             },
-            Token::Identifier(identifier) => {
+            TokenValue::Identifier(identifier) => {
                 let identifier = identifier.clone();
                 self.object(identifier)
             },
-            _ => panic!("unexpected {} {:?} {:?} {:?}", token.to_string(), self.tokens[self.index - 1], self.tokens[self.index - 2], self.tokens[self.index - 3])
+            _ => panic!("unexpected {}", token.to_string())
         }
     }
 
@@ -301,7 +303,7 @@ impl Parser {
         }
     }
 
-    pub fn parse(&mut self) -> &Vec<Statement> {
+    pub fn parse(&mut self) {
         loop {
             if self.index >= self.tokens.len() {
                 break
@@ -312,6 +314,5 @@ impl Parser {
                 _ => panic!("found {} on top level. Only object definitions and directives are allowed here.", statement.to_string()),
             }
         }
-        &self.statements
     }
 }

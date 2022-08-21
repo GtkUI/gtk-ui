@@ -32,7 +32,7 @@ pub enum IdentifierType {
 }
 
 #[derive(Debug, Clone)]
-pub enum Token {
+pub enum TokenValue {
     String(String),             // "mystring"
     Number(i32),                // 0123456789
     Bool(i32),                  // true, false
@@ -47,9 +47,15 @@ pub enum Token {
     ArgListDeliminator,         // ,
 }
 
+#[derive(Debug, Clone)]
+pub struct Token {
+    pub value: TokenValue,
+    pub position: Position
+}
+
 // Position
 
-#[derive(Clone)]
+#[derive(Debug,Clone)]
 pub struct Position {
     pub line: i32,
     pub character: i32
@@ -57,35 +63,35 @@ pub struct Position {
 
 impl Token {
     pub fn to_string(&self) -> &str {
-        match self {
-            Token::String(_) => "string",
-            Token::Number(_) => "number",
-            Token::Bool(_) => "boolean",
-            Token::Definition(_) => "definition",
-            Token::Directive(_) => "directive",
-            Token::Setter(_) => "setter",
-            Token::Identifier(_) => "identifier",
-            Token::StartBlock => "{",
-            Token::EndBlock => "}",
-            Token::StartArgList => "(",
-            Token::EndArgList => ")",
-            Token::ArgListDeliminator => ","
+        match &self.value {
+            TokenValue::String(_) => "string",
+            TokenValue::Number(_) => "number",
+            TokenValue::Bool(_) => "boolean",
+            TokenValue::Definition(_) => "definition",
+            TokenValue::Directive(_) => "directive",
+            TokenValue::Setter(_) => "setter",
+            TokenValue::Identifier(_) => "identifier",
+            TokenValue::StartBlock => "{",
+            TokenValue::EndBlock => "}",
+            TokenValue::StartArgList => "(",
+            TokenValue::EndArgList => ")",
+            TokenValue::ArgListDeliminator => ","
         }
     }
     
     pub fn value_to_string(&self) -> String {
-        match self {
-            Token::String(string) => string.to_string(),
-            Token::Number(number) => number.to_string(),
-            Token::Bool(boolean) => boolean.to_string(),
+        match &self.value {
+            TokenValue::String(string) => string.to_string(),
+            TokenValue::Number(number) => number.to_string(),
+            TokenValue::Bool(boolean) => boolean.to_string(),
             _ => todo!("not implemented yet, but not needed yet!")
         }
     }
 }
 
 impl DefinitionType {
-    pub fn from(definition: &String) -> Token {
-        Token::Definition(
+    pub fn from(definition: &String) -> TokenValue {
+        TokenValue::Definition(
             if definition == "InlineProp" {
                 DefinitionType::InlineProp
             } else if definition == "InlineArg" {
@@ -114,7 +120,7 @@ impl DefinitionType {
 }
 
 impl DirectiveType {
-    pub fn from(directive: &String) -> Token {
+    pub fn from(directive: &String) -> TokenValue {
         let directive_type: Option<DirectiveType>;
 
         if directive == "include" {
@@ -126,7 +132,7 @@ impl DirectiveType {
         }
 
         match directive_type {
-            Some(t) => Token::Directive(t),
+            Some(t) => TokenValue::Directive(t),
             None => panic!("invalid directive")
         }
     }
@@ -161,6 +167,7 @@ impl Lexer {
 
     fn definition(&mut self) -> Result<Token, (String, Position)> {
         let mut definition = String::new();
+        let position = self.position.clone();
         self.move_foward();
         for c in self.input[self.index..].chars() {
             match c {
@@ -172,11 +179,15 @@ impl Lexer {
         }
 
         self.move_forward_n(definition.len());
-        Ok(DefinitionType::from(&definition))
+        Ok(Token {
+            value: DefinitionType::from(&definition),
+            position
+        })
     }
 
     fn directive(&mut self) -> Result<Token, (String, Position)> {
         let mut directive = String::new();
+        let position = self.position.clone();
         self.move_foward();
         for c in self.input[self.index..].chars() {
             match c {
@@ -188,11 +199,15 @@ impl Lexer {
         }
 
         self.move_forward_n(directive.len());
-        Ok(DirectiveType::from(&directive))
+        Ok(Token {
+            value: DirectiveType::from(&directive),
+            position
+        })
     }
 
     fn string(&mut self) -> Result<Token, (String, Position)> {
         let mut string = String::new();
+        let position = self.position.clone();
         self.move_foward();
         loop {
             let c = self.input.chars().nth(self.index).unwrap();
@@ -217,13 +232,18 @@ impl Lexer {
         }
 
         match unescape(string.as_str()) {
-            Some(string) => Ok(Token::String(string)),
+            Some(string) =>
+                Ok(Token {
+                    value: TokenValue::String(string),
+                    position
+                }),
             None => Err(( String::from("unable to escape string"), self.position.clone() ))
         }
     }
 
     fn setter(&mut self) -> Result<Token, (String, Position)> {
         let mut setter = String::new();
+        let position = self.position.clone();
         self.move_foward();
         for c in self.input[self.index..].chars() {
             match c {
@@ -235,11 +255,15 @@ impl Lexer {
         }
 
         self.move_forward_n(setter.len());
-        Ok(Token::Setter(setter))
+        Ok(Token {
+            value: TokenValue::Setter(setter),
+            position
+        })
     }
 
     fn number(&mut self) -> Result<Token, (String, Position)> {
         let mut number = String::new();
+        let position = self.position.clone();
         for c in self.input[self.index..].chars() {
             if ! c.is_digit(10) {
                 break
@@ -250,7 +274,11 @@ impl Lexer {
         self.move_forward_n(number.len());
 
         match number.parse::<i32>() {
-            Ok(num) => Ok(Token::Number(num)),
+            Ok(num) =>
+                Ok(Token {
+                    value: TokenValue::Number(num),
+                    position
+                }),
             Err(e) => Err((e.to_string(), self.position.clone()))
         }
     }
@@ -258,6 +286,7 @@ impl Lexer {
     // TODO: Rename this function to include its use with parsing booleans
     fn identifier(&mut self) -> Result<Token, (String, Position)> {
         let mut identifier = String::new();
+        let position = self.position.clone();
         for c in self.input[self.index..].chars() {
             match c {
                 name_range!() => {
@@ -269,21 +298,28 @@ impl Lexer {
 
         self.move_forward_n(identifier.len());
 
-        Ok(
-            match identifier.as_str() {
-                "true"   => Token::Bool(1),
-                "false"  => Token::Bool(0),
-                "String" => Token::Identifier(IdentifierType::Type(TypeIdentifierType::String)),
-                "Number" => Token::Identifier(IdentifierType::Type(TypeIdentifierType::Number)),
-                "Bool"   => Token::Identifier(IdentifierType::Type(TypeIdentifierType::Bool)),
-                _        => Token::Identifier(IdentifierType::Generic(identifier))
-            }
-        )
+        let value = match identifier.as_str() {
+            "true"   => TokenValue::Bool(1),
+            "false"  => TokenValue::Bool(0),
+            "String" => TokenValue::Identifier(IdentifierType::Type(TypeIdentifierType::String)),
+            "Number" => TokenValue::Identifier(IdentifierType::Type(TypeIdentifierType::Number)),
+            "Bool"   => TokenValue::Identifier(IdentifierType::Type(TypeIdentifierType::Bool)),
+            _        => TokenValue::Identifier(IdentifierType::Generic(identifier))
+        };
+
+        Ok(Token {
+            value,
+            position
+        })
     }
 
-    fn add_and_move(&mut self, token: Token) -> Result<Token, (String, Position)> {
+    fn add_and_move(&mut self, value: TokenValue) -> Result<Token, (String, Position)> {
+        let position = self.position.clone();
         self.move_foward();
-        Ok(token)
+        Ok(Token{
+            value,
+            position
+        })
     }
 
     fn comment(&mut self) {
@@ -320,11 +356,11 @@ impl Lexer {
                     '.'           => self.setter(),
                     '0'..='9'     => self.number(),
                     name_range!() => self.identifier(),
-                    '{'           => self.add_and_move(Token::StartBlock),
-                    '}'           => self.add_and_move(Token::EndBlock),
-                    ','           => self.add_and_move(Token::ArgListDeliminator),
-                    '('           => self.add_and_move(Token::StartArgList),
-                    ')'           => self.add_and_move(Token::EndArgList),
+                    '{'           => self.add_and_move(TokenValue::StartBlock),
+                    '}'           => self.add_and_move(TokenValue::EndBlock),
+                    ','           => self.add_and_move(TokenValue::ArgListDeliminator),
+                    '('           => self.add_and_move(TokenValue::StartArgList),
+                    ')'           => self.add_and_move(TokenValue::EndArgList),
                     ' ' | '\n'    => {
                         self.move_foward();
                         continue
