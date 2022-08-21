@@ -1,1 +1,5 @@
 /target
+
+examples/simple.ui
+.nvim_session
+
