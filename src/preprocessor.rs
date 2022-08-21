@@ -1,7 +1,8 @@
 use super::lexer::Lexer;
 use super::parser::{
     Parser,
-    Statement
+    Statement,
+    StatementValue
 };
 use super::util::check_error;
 use std::fs;
@@ -25,8 +26,8 @@ impl Preprocessor {
     // Pubs
     pub fn preprocess(&mut self, input: Vec<Statement>, included_files: Vec<String>) {
         for statement in input {
-            match statement {
-                Statement::Include(path) => {
+            match statement.value {
+                StatementValue::Include(path) => {
                     let file_content;
                     let file_path: String;
 
@@ -55,7 +56,7 @@ impl Preprocessor {
 
                     self.preprocess(parser.statements, included_files);
                 },
-                statement => {
+                _ => {
                     self.statements.push(statement);
                 }
             }

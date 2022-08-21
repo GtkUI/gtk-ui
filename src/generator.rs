@@ -1,5 +1,6 @@
 use super::parser::{
     Statement,
+    StatementValue,
     DefinitionType,
 };
 use super::lexer::{
@@ -52,8 +53,8 @@ impl Generator {
         let mut result = String::new();
 
         for child in children {
-            match child {
-                Statement::Object(object) => {
+            match &child.value {
+                StatementValue::Object(object) => {
                     if let Some(definition) = self.definitions.get(&object.name) {
                         match definition {
                             CachedDefinition::Raw(definition) => {
@@ -154,15 +155,15 @@ impl Generator {
         let mut args: Vec<(String, TokenTypeIdentifierType, TokenDefinitionType)> = Vec::new();
 
         for property in properties {
-            if let Statement::Property(property) = property {
-                match property.definition_type {
+            if let StatementValue::Property(property_value) = &property.value {
+                match property_value.definition_type {
                     TokenDefinitionType::InlineProp | TokenDefinitionType::ChildProp => {
-                        props.insert(property.name.clone(), (property.internal_type.clone(), property.definition_type.clone()));
+                        props.insert(property_value.name.clone(), (property_value.internal_type.clone(), property_value.definition_type.clone()));
                     },
                     TokenDefinitionType::InlineArg | TokenDefinitionType::ChildArg => {
-                        args.push((property.name.clone(), property.internal_type.clone(), property.definition_type.clone()));
+                        args.push((property_value.name.clone(), property_value.internal_type.clone(), property_value.definition_type.clone()));
                     },
-                    _ => panic!("expected a property definition, found {}", property.definition_type.to_string())
+                    _ => panic!("expected a property definition, found {}", property_value.definition_type.to_string())
                 }
             }
         }
@@ -175,8 +176,8 @@ impl Generator {
     // Pubs
     pub fn generate(&mut self) {
         for statement in &self.statements {
-            match statement {
-                Statement::Definition(definition) => {
+            match &statement.value {
+                StatementValue::Definition(definition) => {
                     match &definition.definition_type {
                         DefinitionType::Root(filename) => {
                             print!("Writing {}.ui... ", filename);
@@ -197,7 +198,7 @@ impl Generator {
                         }
                     }
                 },
-                Statement::Header(header) => {
+                StatementValue::Header(header) => {
                     self.header.push_str(header);
                     self.header.push('\n');
                 },

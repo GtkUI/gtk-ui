@@ -47,7 +47,7 @@ pub struct Object {
 }
 
 #[derive(Debug)]
-pub enum Statement {
+pub enum StatementValue {
     Property(Property),
     Definition(Definition),
     Object(Object),
@@ -55,14 +55,20 @@ pub enum Statement {
     Include(String)
 }
 
+#[derive(Debug)]
+pub struct Statement {
+    pub value: StatementValue,
+    pub position: Position
+}
+
 impl Statement {
     pub fn to_string(&self) -> &str {
-        match self {
-            Statement::Property(_) => "Property",
-            Statement::Definition(_) => "Definition",
-            Statement::Object(_) => "Object",
-            Statement::Header(_) => "Header",
-            Statement::Include(_) => "Include"
+        match &self.value {
+            StatementValue::Property(_) => "Property",
+            StatementValue::Definition(_) => "Definition",
+            StatementValue::Object(_) => "Object",
+            StatementValue::Header(_) => "Header",
+            StatementValue::Include(_) => "Include"
         }
     }
 }
@@ -91,8 +97,8 @@ impl Parser {
                     break;
                 }
                 let statement = self.parse_statement();
-                match statement {
-                    Statement::Property(_) | Statement::Object(_) => statements.push(statement),
+                match &statement.value {
+                    StatementValue::Property(_) | StatementValue::Object(_) => statements.push(statement),
                     _ => panic!("found {} inside block. Only properties and objects are allowed here.", statement.to_string()),
                 }
             }
@@ -136,14 +142,14 @@ impl Parser {
         }
     }
 
-    fn definition(&mut self, definition_type: TokenDefinitionType) -> Statement {
+    fn definition(&mut self, definition_type: TokenDefinitionType, position: Position) -> Statement {
         self.index += 1;
         if let TokenDefinitionType::Object(name) = definition_type {
             let block = self.block();
             let definition_type = {
-                if block.iter().all(|x| matches!(x, Statement::Property(_))) {
+                if block.iter().all(|x| matches!(&x.value, StatementValue::Property(_))) {
                     DefinitionType::Raw
-                } else if block.iter().all(|x| matches!(x, Statement::Object(_))) {
+                } else if block.iter().all(|x| matches!(&x.value, StatementValue::Object(_))) {
                     if name == "root" {
                         let path = Path::new(&self.filename);
                         DefinitionType::Root(path.file_stem().expect("invalid file path").to_str().expect("failed to unwrap file path string").to_string())
@@ -161,7 +167,10 @@ impl Parser {
                 definition_type
             };
 
-            Statement::Definition(definition)
+            Statement {
+                value: StatementValue::Definition(definition),
+                position: position.clone()
+            }
         } else {
             let arglist = self.arglist();
             
@@ -178,7 +187,10 @@ impl Parser {
                         internal_type: internal_type.clone(),
                         definition_type: definition_type.clone()
                     };
-                    Statement::Property(property)
+                    Statement {
+                        value: StatementValue::Property(property),
+                        position: position.clone()
+                    }
                 } else {
                     panic!("expected type identifier, found {}", internal_type.to_string());
                 }
@@ -188,25 +200,29 @@ impl Parser {
         }
     }
 
-    fn directive(&mut self, directive_type: TokenDirectiveType) -> Statement {
+    fn directive(&mut self, directive_type: TokenDirectiveType, position: Position) -> Statement {
         self.index += 1;
         let directive_argument_token = &self.tokens[self.index];
         if let TokenValue::String(arg) = &directive_argument_token.value {
             self.index += 1;
-            match directive_type {
+            let value = match directive_type {
                 TokenDirectiveType::Header => {
-                    Statement::Header(arg.clone())
+                    StatementValue::Header(arg.clone())
                 },
                 TokenDirectiveType::Include => {
-                    Statement::Include(arg.clone())
+                    StatementValue::Include(arg.clone())
                 }
+            };
+            Statement {
+                value,
+                position: position.clone()
             }
         } else {
             panic!("expected string, found {}", directive_argument_token.to_string());
         }
     }
 
-    fn object(&mut self, identifier_type: TokenIdentifierType) -> Statement {
+    fn object(&mut self, identifier_type: TokenIdentifierType, position: Position) -> Statement {
         if let TokenIdentifierType::Generic(name) = identifier_type {
             self.index += 1;
             let token = &self.tokens[self.index];
@@ -268,7 +284,10 @@ impl Parser {
                 setters
             };
 
-            Statement::Object(object)
+            Statement {
+                value: StatementValue::Object(object),
+                position: position.clone()
+            }
         } else {
             panic!("expected generic identifier, found type identifier");
         }
@@ -279,15 +298,15 @@ impl Parser {
         match &token.value {
             TokenValue::Definition(definition) => {
                 let definition = definition.clone();
-                self.definition(definition)
+                self.definition(definition, token.position)
             },
             TokenValue::Directive(directive) => {
                 let directive = directive.clone();
-                self.directive(directive)
+                self.directive(directive, token.position)
             },
             TokenValue::Identifier(identifier) => {
                 let identifier = identifier.clone();
-                self.object(identifier)
+                self.object(identifier, token.position)
             },
             _ => panic!("unexpected {}", token.to_string())
         }
@@ -309,8 +328,8 @@ impl Parser {
                 break
             }
             let statement = self.parse_statement();
-            match statement {
-                Statement::Definition(_) | Statement::Header(_) | Statement::Include(_) => self.statements.push(statement),
+            match &statement.value {
+                StatementValue::Definition(_) | StatementValue::Header(_) | StatementValue::Include(_) => self.statements.push(statement),
                 _ => panic!("found {} on top level. Only object definitions and directives are allowed here.", statement.to_string()),
             }
         }

@@ -55,7 +55,7 @@ pub struct Token {
 
 // Position
 
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,Copy)]
 pub struct Position {
     pub line: i32,
     pub character: i32
