@@ -42,5 +42,5 @@ fn main() {
     check_error(preprocessor.preprocess(parser.statements, vec![filename.clone()]));
     
     let mut generator = Generator::new(preprocessor.statements);
-    generator.generate();
+    check_error(generator.generate());
 }
