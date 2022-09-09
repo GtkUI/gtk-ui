@@ -29,6 +29,7 @@ pub enum DefinitionType {
 pub struct Definition {
     pub name: String,
     pub children: Vec<Statement>,
+    pub inherits: Vec<String>,
     pub definition_type: DefinitionType
 }
 
@@ -123,12 +124,13 @@ impl Parser {
                 let token = &self.tokens[self.index];
                 match &token.value {
                     TokenValue::Number(_) | TokenValue::String(_) | TokenValue::Bool(_) => args.push(token.clone()),
-                    TokenValue::Identifier(identifier) => {
-                        if let TokenIdentifierType::Type(_) = identifier {
-                            args.push(token.clone())
-                        } else {
-                            return Err((format!("found generic identifier, expected Number, String, Bool, or type identifier"), token.position));
-                        }
+                    TokenValue::Identifier(_identifier) => {
+                        // if let TokenIdentifierType::Type(_) = identifier {
+                        //     args.push(token.clone())
+                        // } else {
+                        //     return Err((format!("found generic identifier, expected Number, String, Bool, or type identifier"), token.position));
+                        // }
+                        args.push(token.clone())
                     },
                     _ => return Err((format!("found {}, expected Number, String, Bool, or type identifier", token.to_string()), token.position))
                 }
@@ -151,6 +153,40 @@ impl Parser {
     fn definition(&mut self, definition_type: TokenDefinitionType, position: Position) -> Result<Statement, (String, Position)> {
         self.index += 1;
         if let TokenDefinitionType::Object(name) = definition_type {
+            let token = &self.tokens[self.index];
+            let mut inherits: Vec<String> = Vec::new();
+            match &token.value {
+                TokenValue::StartBlock => (),
+                TokenValue::Inherits => {
+                    self.index += 1;
+                    let token = &self.tokens[self.index];
+                    
+                    match &token.value {
+                        TokenValue::StartArgList => {
+                            match self.arglist() {
+                                Ok(arglist) => {
+                                    for token in arglist.0 {
+                                        if let TokenValue::Identifier(TokenIdentifierType::Generic(parent)) = &token.value {
+                                            inherits.push(parent.clone());
+                                        } else {
+                                            return Err((String::from("argument list of parents must only contain definitions"), arglist.1.clone()));
+                                        }
+                                    }
+                                },
+                                Err(err) => {
+                                    return Err(err);
+                                }
+                            }
+                        },
+                        TokenValue::Identifier(TokenIdentifierType::Generic(parent)) => {
+                            inherits.push(parent.clone());
+                            self.index += 1;
+                        },
+                        _ => return Err((format!("expected an argument list or definition identifier, found {}", token.to_string()), token.position.clone()))
+                    }
+                },
+                _ => return Err((format!("expected a '->' or '{{', found '{}'", token.to_string()), token.position.clone()))
+            }
             match self.block() {
                 Ok(block) => {
                     let definition_type = {
@@ -171,7 +207,8 @@ impl Parser {
                     let definition = Definition {
                         name: name.to_string(),
                         children: block.0,
-                        definition_type
+                        definition_type,
+                        inherits
                     };
 
                     Ok(Statement {

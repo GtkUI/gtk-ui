@@ -1,5 +1,6 @@
 /target
 
 examples/simple.ui
+examples/inheritance.ui
 .nvim_session
 

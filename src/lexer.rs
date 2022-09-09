@@ -40,6 +40,7 @@ pub enum TokenValue {
     Directive(DirectiveType),   // #mydirective
     Setter(String),             // .mysetter
     Identifier(IdentifierType), // anything else
+    Inherits,                   // ->
     StartBlock,                 // { 
     EndBlock,                   // }
     StartArgList,               // (
@@ -75,7 +76,8 @@ impl Token {
             TokenValue::EndBlock => "}",
             TokenValue::StartArgList => "(",
             TokenValue::EndArgList => ")",
-            TokenValue::ArgListDeliminator => ","
+            TokenValue::ArgListDeliminator => ",",
+            TokenValue::Inherits => "->"
         }
     }
     
@@ -336,13 +338,27 @@ impl Lexer {
         }
     }
 
+    fn inherits(&mut self) -> Result<Token, (String, Position)> {
+        let position = self.position.clone();
+        self.move_foward();
+        if self.input.chars().nth(self.index).unwrap() == '>' {
+            self.move_foward();
+            Ok(Token {
+                value: TokenValue::Inherits,
+                position
+            })
+        } else {
+            Err((String::from("unrecognized character '-'"), self.position.clone()))
+        }
+    }
+
     // Pubs
     pub fn new(s: String) -> Self {
         Self {
             tokens: Vec::new(),
             index: 0,
             input: s,
-            position: Position { line: 0, character: 0 }
+            position: Position { line: 1, character: 1 }
         }
     }
     pub fn lex(&mut self) -> Result<(), (String, Position)> {
@@ -350,22 +366,29 @@ impl Lexer {
             let input_char = self.input.chars().nth(self.index);
             if let Some(c) = input_char {
                 let token = match c {
-                    '@'           => self.definition(),
-                    '#'           => self.directive(),
-                    '"'           => self.string(),
-                    '.'           => self.setter(),
-                    '0'..='9'     => self.number(),
-                    name_range!() => self.identifier(),
-                    '{'           => self.add_and_move(TokenValue::StartBlock),
-                    '}'           => self.add_and_move(TokenValue::EndBlock),
-                    ','           => self.add_and_move(TokenValue::ArgListDeliminator),
-                    '('           => self.add_and_move(TokenValue::StartArgList),
-                    ')'           => self.add_and_move(TokenValue::EndArgList),
-                    ' ' | '\n'    => {
+                    '@'                 => self.definition(),
+                    '#'                 => self.directive(),
+                    '"'                 => self.string(),
+                    '.'                 => self.setter(),
+                    '0'..='9'           => self.number(),
+                    '-'                 => self.inherits(),
+                    start_name_range!() => self.identifier(),
+                    '{'                 => self.add_and_move(TokenValue::StartBlock),
+                    '}'                 => self.add_and_move(TokenValue::EndBlock),
+                    ','                 => self.add_and_move(TokenValue::ArgListDeliminator),
+                    '('                 => self.add_and_move(TokenValue::StartArgList),
+                    ')'                 => self.add_and_move(TokenValue::EndArgList),
+                    '\n'                => {
+                        self.position.line += 1;
+                        self.position.character = 1;
                         self.move_foward();
                         continue
                     },
-                    '/' => {
+                    ' '                 => {
+                        self.move_foward();
+                        continue
+                    },
+                    '/'                 => {
                         self.comment();
                         continue
                     },

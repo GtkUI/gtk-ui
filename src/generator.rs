@@ -2,6 +2,7 @@ use super::parser::{
     Statement,
     StatementValue,
     DefinitionType,
+    Property
 };
 use super::lexer::{
     DefinitionType as TokenDefinitionType,
@@ -17,7 +18,8 @@ use std::collections::HashMap;
 #[derive(Debug)]
 pub struct CachedRawDefinition {
     props: HashMap<String, (TokenTypeIdentifierType, TokenDefinitionType)>,
-    args: Vec<(String, TokenTypeIdentifierType, TokenDefinitionType)>
+    args: Vec<(String, TokenTypeIdentifierType, TokenDefinitionType)>,
+    inherits: Vec<String>
 }
 
 #[derive(Debug)]
@@ -47,6 +49,29 @@ impl Generator {
                 Ok(matches!(expected_type, TokenTypeIdentifierType::String))
             },
             _ => Err((format!("{} is not a primitive and therefore it's type cannot be checked", token.to_string()), token.position))
+        }
+    }
+
+    fn get_prop_from_definition(&self, definition: &CachedRawDefinition, definition_name: &String, prop_name: &String) -> Result<(TokenTypeIdentifierType, TokenDefinitionType), (String, Position)> {
+        if let Some(prop) = definition.props.get(prop_name) {
+            Ok(prop.clone())
+        } else {
+            for definition_name in &definition.inherits {
+                if let Some(definition) = self.definitions.get(definition_name) {
+                    if let CachedDefinition::Raw(definition) = definition {
+                        if let Ok(result) = self.get_prop_from_definition(definition, definition_name, prop_name) {
+                            return Ok(result);
+                        }
+                    } else {
+                        // TODO: Get position somehow
+                        return Err((format!("Cannot inherit collective definition '{}'", definition_name), Position { line: 0, character: 0 }))
+                    }
+                } else {
+                    // TODO: Get position somehow
+                    return Err((format!("Inherited undefined definition '{}'", definition_name), Position { line: 0, character: 0 }))
+                }
+            };
+            return Err((format!("No such property on '{}' called '{}'", definition_name, prop_name), Position { line: 0, character: 0 }));
         }
     }
 
@@ -87,10 +112,10 @@ impl Generator {
                                 }
 
                                 for setter in &object.setters {
-                                    let defined_prop = definition.props.get(&setter.name);
+                                    let defined_prop = self.get_prop_from_definition(definition, &object.name, &setter.name);
                                     let actual_prop = &setter.value;
 
-                                    if let Some(defined_prop) = defined_prop {
+                                    if let Ok(defined_prop) = defined_prop {
                                         // Check if actual and defined are the same type and if so check if the definition specifies it as an inline or a child
                                         if let Ok(is_valid) = Generator::is_valid_type(&actual_prop, &defined_prop.0) {
                                             if is_valid {
@@ -160,7 +185,7 @@ impl Generator {
         Ok(result)
     }
 
-    pub fn generate_from_raw(properties: &Vec<Statement>) -> Result<CachedRawDefinition, (String, Position)> {
+    pub fn generate_from_raw(properties: &Vec<Statement>, inherits: &Vec<String>) -> Result<CachedRawDefinition, (String, Position)> {
         let mut props: HashMap<String, (TokenTypeIdentifierType, TokenDefinitionType)> = HashMap::new();
         let mut args: Vec<(String, TokenTypeIdentifierType, TokenDefinitionType)> = Vec::new();
 
@@ -179,6 +204,7 @@ impl Generator {
         }
 
         Ok(CachedRawDefinition {
+            inherits: inherits.clone(),
             props, args
         })
     }
@@ -214,7 +240,7 @@ impl Generator {
                             }
                         },
                         DefinitionType::Raw => {
-                            match Generator::generate_from_raw(&definition.children) {
+                            match Generator::generate_from_raw(&definition.children, &definition.inherits) {
                                 Ok(raw) => {
                                     self.definitions.insert(definition.name.clone(), CachedDefinition::Raw(raw));
                                 },

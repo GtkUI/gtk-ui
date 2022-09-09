@@ -1,0 +1,18 @@
+@A {
+  @ChildProp("PropA", Bool)  
+}
+
+@B {
+  @ChildProp("PropB", Bool)
+}
+
+@C -> (B, A) {
+  @ChildProp("PropC", Bool)
+}
+
+@root {
+  C {}
+  .PropB(true)
+  .PropC(false)
+  .PropA(true)
+}
