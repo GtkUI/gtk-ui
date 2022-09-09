@@ -71,6 +71,7 @@ impl Generator {
                     return Err((format!("Inherited undefined definition '{}'", definition_name), Position { line: 0, character: 0 }))
                 }
             };
+            // TODO: Get position somehow
             return Err((format!("No such property on '{}' called '{}'", definition_name, prop_name), Position { line: 0, character: 0 }));
         }
     }
