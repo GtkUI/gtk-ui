@@ -36,7 +36,8 @@ pub struct Definition {
 #[derive(Debug)]
 pub struct Setter {
     pub name: String,
-    pub value: Token
+    pub value: Token,
+    pub position: Position
 }
 
 #[derive(Debug)]
@@ -306,7 +307,7 @@ impl Parser {
             }
 
             loop {
-                let token = &self.tokens[self.index];
+                let token = self.tokens[self.index].clone();
                 
                 match &token.value {
                     TokenValue::Identifier(_) | TokenValue::EndBlock => break,
@@ -326,7 +327,8 @@ impl Parser {
                                     TokenValue::Number(_) | TokenValue::String(_) | TokenValue::Bool(_) => {
                                         setters.push(Setter {
                                             name: name,
-                                            value: value.clone()
+                                            value: value.clone(),
+                                            position: token.position
                                         })
                                     },
                                     _ => return Err((format!("expected Number, String, or Bool, found {}", value.to_string()), value.position))

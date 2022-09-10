@@ -2,7 +2,7 @@ use super::parser::{
     Statement,
     StatementValue,
     DefinitionType,
-    Property
+    Setter
 };
 use super::lexer::{
     DefinitionType as TokenDefinitionType,
@@ -19,7 +19,8 @@ use std::collections::HashMap;
 pub struct CachedRawDefinition {
     props: HashMap<String, (TokenTypeIdentifierType, TokenDefinitionType)>,
     args: Vec<(String, TokenTypeIdentifierType, TokenDefinitionType)>,
-    inherits: Vec<String>
+    inherits: Vec<String>,
+    position: Position
 }
 
 #[derive(Debug)]
@@ -52,27 +53,24 @@ impl Generator {
         }
     }
 
-    fn get_prop_from_definition(&self, definition: &CachedRawDefinition, definition_name: &String, prop_name: &String) -> Result<(TokenTypeIdentifierType, TokenDefinitionType), (String, Position)> {
-        if let Some(prop) = definition.props.get(prop_name) {
+    fn get_prop_from_definition(&self, definition: &CachedRawDefinition, definition_name: &String, setter: &Setter) -> Result<(TokenTypeIdentifierType, TokenDefinitionType), (String, Position)> {
+        if let Some(prop) = definition.props.get(setter.name.as_str()) {
             Ok(prop.clone())
         } else {
             for definition_name in &definition.inherits {
-                if let Some(definition) = self.definitions.get(definition_name) {
-                    if let CachedDefinition::Raw(definition) = definition {
-                        if let Ok(result) = self.get_prop_from_definition(definition, definition_name, prop_name) {
+                if let Some(parent_definition) = self.definitions.get(definition_name) {
+                    if let CachedDefinition::Raw(parent_definition) = parent_definition {
+                        if let Ok(result) = self.get_prop_from_definition(parent_definition, definition_name, setter) {
                             return Ok(result);
                         }
                     } else {
-                        // TODO: Get position somehow
-                        return Err((format!("Cannot inherit collective definition '{}'", definition_name), Position { line: 0, character: 0 }))
+                        return Err((format!("Cannot inherit collective definition '{}'", definition_name), definition.position))
                     }
                 } else {
-                    // TODO: Get position somehow
-                    return Err((format!("Inherited undefined definition '{}'", definition_name), Position { line: 0, character: 0 }))
+                    return Err((format!("Inherited undefined definition '{}'", definition_name), definition.position))
                 }
             };
-            // TODO: Get position somehow
-            return Err((format!("No such property on '{}' called '{}'", definition_name, prop_name), Position { line: 0, character: 0 }));
+            return Err((format!("No such property on '{}' called '{}'", definition_name, setter.name.as_str()), setter.position));
         }
     }
 
@@ -113,24 +111,27 @@ impl Generator {
                                 }
 
                                 for setter in &object.setters {
-                                    let defined_prop = self.get_prop_from_definition(definition, &object.name, &setter.name);
+                                    let defined_prop = self.get_prop_from_definition(definition, &object.name, &setter);
                                     let actual_prop = &setter.value;
 
-                                    if let Ok(defined_prop) = defined_prop {
-                                        // Check if actual and defined are the same type and if so check if the definition specifies it as an inline or a child
-                                        if let Ok(is_valid) = Generator::is_valid_type(&actual_prop, &defined_prop.0) {
-                                            if is_valid {
-                                                match defined_prop.1 {
-                                                    TokenDefinitionType::InlineProp => {
-                                                        inlines.push((setter.name.clone(), actual_prop.value_to_string()));
-                                                    },
-                                                    TokenDefinitionType::ChildProp => {
-                                                        children.push((setter.name.clone(), actual_prop.value_to_string()));
-                                                    },
-                                                    _ => return Err((format!("expected either an InlineArg or a ChildArg, got {}", defined_prop.1.to_string()), actual_prop.position))
+                                    match defined_prop {
+                                        Ok(defined_prop) => {
+                                            // Check if actual and defined are the same type and if so check if the definition specifies it as an inline or a child
+                                            if let Ok(is_valid) = Generator::is_valid_type(&actual_prop, &defined_prop.0) {
+                                                if is_valid {
+                                                    match defined_prop.1 {
+                                                        TokenDefinitionType::InlineProp => {
+                                                            inlines.push((setter.name.clone(), actual_prop.value_to_string()));
+                                                        },
+                                                        TokenDefinitionType::ChildProp => {
+                                                            children.push((setter.name.clone(), actual_prop.value_to_string()));
+                                                        },
+                                                        _ => return Err((format!("expected either an InlineArg or a ChildArg, got {}", defined_prop.1.to_string()), actual_prop.position))
+                                                    }
                                                 }
                                             }
-                                        }
+                                        },
+                                        Err(err) => return Err(err)
                                     }
                                 }
 
@@ -186,7 +187,7 @@ impl Generator {
         Ok(result)
     }
 
-    pub fn generate_from_raw(properties: &Vec<Statement>, inherits: &Vec<String>) -> Result<CachedRawDefinition, (String, Position)> {
+    pub fn generate_from_raw(properties: &Vec<Statement>, inherits: &Vec<String>, position: &Position) -> Result<CachedRawDefinition, (String, Position)> {
         let mut props: HashMap<String, (TokenTypeIdentifierType, TokenDefinitionType)> = HashMap::new();
         let mut args: Vec<(String, TokenTypeIdentifierType, TokenDefinitionType)> = Vec::new();
 
@@ -206,6 +207,7 @@ impl Generator {
 
         Ok(CachedRawDefinition {
             inherits: inherits.clone(),
+            position: position.clone(),
             props, args
         })
     }
@@ -217,7 +219,7 @@ impl Generator {
                 StatementValue::Definition(definition) => {
                     match &definition.definition_type {
                         DefinitionType::Root(filename) => {
-                            print!("Writing {}.ui... ", filename);
+                            // print!("Writing {}.ui... ", filename);
                             let mut file_content = String::new();
                             match self.generate_from_collective(&definition.children) {
                                 Ok(collective) => {
@@ -230,7 +232,7 @@ impl Generator {
                             let mut file = File::create(format!("{}.ui", filename)).expect("failed to create output file");
                             writeln!(file, "{}", self.header).expect("failed to write to output file");
                             writeln!(file, "{}", file_content).expect("failed to write to output file");
-                            println!("done!");
+                            // println!("done!");
                         },
                         DefinitionType::Collective => {
                             match self.generate_from_collective(&definition.children) {
@@ -241,7 +243,7 @@ impl Generator {
                             }
                         },
                         DefinitionType::Raw => {
-                            match Generator::generate_from_raw(&definition.children, &definition.inherits) {
+                            match Generator::generate_from_raw(&definition.children, &definition.inherits, &statement.position) {
                                 Ok(raw) => {
                                     self.definitions.insert(definition.name.clone(), CachedDefinition::Raw(raw));
                                 },

@@ -19,7 +19,6 @@ fn print_help() {
     println!("Usage: gtk-ui [FILENAME]");
 }
 
-
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -37,6 +36,7 @@ fn main() {
     
     let mut parser = Parser::new(lexer.tokens, filename.clone());
     check_error(parser.parse());
+    println!("{:?}", parser.statements);
 
     let mut preprocessor = Preprocessor::new();
     check_error(preprocessor.preprocess(parser.statements, vec![filename.clone()]));

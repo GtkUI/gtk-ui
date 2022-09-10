@@ -6,12 +6,23 @@
   @ChildProp("PropB", Bool)
 }
 
-@C -> (B, A) {
+@CollectiveA {
+  A {
+
+  }.PropA(false)
+}
+
+@C -> (A, B) {
   @ChildProp("PropC", Bool)
 }
 
 @root {
-  C {}
+  C {
+      C {
+
+      }
+      .PropB(true)
+  }
   .PropB(true)
   .PropC(false)
   .PropA(true)
