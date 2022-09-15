@@ -154,8 +154,7 @@ impl Generator {
                                 for child in &children {
                                     result += "<property name=\"";
                                     result += child.0.as_str();
-                                    result += "\"";
-                                    result += ">";
+                                    result += "\">";
                                     result += child.1.as_str();
                                     result += "</property>\n";
                                 }
