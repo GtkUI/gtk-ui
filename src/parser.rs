@@ -11,21 +11,21 @@ use std::path::Path;
 
 // Statement
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Property {
     pub internal_type: TokenTypeIdentifierType,
     pub name: String,
     pub definition_type: TokenDefinitionType
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum DefinitionType {
     Raw,
     Collective,
     Root(String)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Definition {
     pub name: String,
     pub children: Vec<Statement>,
@@ -33,14 +33,14 @@ pub struct Definition {
     pub definition_type: DefinitionType
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Setter {
     pub name: String,
     pub value: Token,
     pub position: Position
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Object {
     pub name: String,
     pub children: Vec<Statement>,
@@ -48,7 +48,7 @@ pub struct Object {
     pub setters: Vec<Setter>
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum StatementValue {
     Property(Property),
     Definition(Definition),
@@ -57,7 +57,7 @@ pub enum StatementValue {
     Include(String)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Statement {
     pub value: StatementValue,
     pub position: Position
