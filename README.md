@@ -2,9 +2,11 @@
 
 A language designed to improve readability and the overall efficiency of Gtk app development.
 
+This language is heavily inspired by Apple's SwiftUI syntax and is generally the inspiration for this project.
+
 ## What does this solve?
 
-Lets take a look at what the tradition "Builder File" looks like
+Lets take a look at what the tradition "Builder File" looks like.
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -58,10 +60,21 @@ Not only is this less code, but it more accurately conveys the structure of the 
 // ...
 
 <child>
+   <object class="GtkLabel">
+      <property name="label">Hello, world!</property>
+      <property name="visible">1</property>
+      <property name="margin-top">10</property>
+      <property name="margin-bottom">10</property>
+   </object>
+   
+  // Add this
+
   <object class="GtkLabel">
     <property name="label">My Second Label</property>
     <property name="visible">1</property>
   </object>
+
+  // -------
 </child>
 
 // ...
@@ -72,8 +85,20 @@ Not to belabor the point, but that's 6 lines for the bare minimum of a label. If
 ```scss
 // ...
 
-GtkLabel("My Second Label")
-  .visible(true)
+GtkBox {
+  GtkLabel("Hello, world!")
+    .visible(true)
+    .align("center")
+    .margin-top(10)
+    .margin-bottom(10)
+
+  // Add this
+
+  GtkLabel("My Second Label")
+    .visible(true)
+
+  // -------
+}
 
 // ...
 ```
