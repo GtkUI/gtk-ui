@@ -5,7 +5,7 @@
     GtkBox {
       GtkLabel("Hello, world!")
         .visible(true)
-        .align("center")
+        .halign("center")
         .margin-top(10)
         .margin-bottom(10)
     }

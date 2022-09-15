@@ -12,7 +12,7 @@
   }.PropA(false)
 }
 
-@C -> (A, B) {
+@C -> (A, B, D) {
   @ChildProp("PropC", Bool)
 }
 
