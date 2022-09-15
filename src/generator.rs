@@ -160,15 +160,16 @@ impl Generator {
                                     result += "</property>\n";
                                 }
 
-                                if object.children.len() > 0 {
-                                    result += "<child>\n";
-                                    match self.generate_from_collective(&object.children) {
+                                for child in &object.children {
+                                    let child = vec![child.clone()];
+                                    match self.generate_from_collective(&child) {
                                         Ok(collective) => {
+                                            result += "<child>\n";
                                             result += collective.as_str();
+                                            result += "</child>\n";
                                         },
                                         Err(err) => return Err(err)
                                     }
-                                    result += "</child>\n";
                                 }
                                 result += "</object>\n"
                             },
