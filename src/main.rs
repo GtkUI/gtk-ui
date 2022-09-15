@@ -33,10 +33,11 @@ fn main() {
     
     let mut lexer = Lexer::new(file_content);
     check_error(lexer.lex());
+
+    //println!("{:#?}", &lexer.tokens);
     
     let mut parser = Parser::new(lexer.tokens, filename.clone());
     check_error(parser.parse());
-    println!("{:?}", parser.statements);
 
     let mut preprocessor = Preprocessor::new();
     check_error(preprocessor.preprocess(parser.statements, vec![filename.clone()]));
