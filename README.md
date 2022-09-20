@@ -6,7 +6,11 @@ This language is heavily inspired by Apple's SwiftUI syntax and is generally the
 
 ## What does this solve?
 
-Lets take a look at what the tradition "Builder File" looks like.
+Take a look at this very basic "hello world".
+
+![Hello World Gtk App](https://user-images.githubusercontent.com/42098470/191370177-d36f35b0-68ba-4d85-9be7-b169b2ecc06c.png)
+
+Here is what you would have to write in the standard "builder file" to get this.
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -54,33 +58,34 @@ This is not a very readable or compact way to represent a UI. It is redundant an
 }
 ```
 
-Not only is this less code, but it more accurately conveys the structure of the UI. You can easily tell what the object's children are, what properties it has, and more important information, like the text in a GtkLabel, is displayed right next to the object so you can get a pretty good idea of where you are when skimming the code. Lets try to add another GtkLabel to our box.
+Not only is this less code, but it more accurately conveys the structure of the UI. You can easily tell what the object's children are, what properties it has, and more important information, like the text in a GtkLabel, is displayed right next to the object so you can get a pretty good idea of where you are when skimming the code. Lets try to add another GtkLabel to our box. Here's what it should look like.
+
+![Second Label Image](https://user-images.githubusercontent.com/42098470/191373277-63cf07fa-7901-4aa6-8496-29eef0c82a91.png)
+
+And here are the changes that would need to be made to the builder file.
 
 ```xml
 // ...
 
-<child>
-   <object class="GtkLabel">
-      <property name="label">Hello, world!</property>
-      <property name="visible">1</property>
-      <property name="margin-top">10</property>
-      <property name="margin-bottom">10</property>
-   </object>
-   
+<object class="GtkBox">
+
+  // ...
+
   // Add this
 
-  <object class="GtkLabel">
-    <property name="label">My Second Label</property>
-    <property name="visible">1</property>
-  </object>
+  <child>
+    <object class="GtkLabel">
+      <property name="label">My Second Label</property>
+      <property name="visible">1</property>
+    </object>
+  </child>
 
-  // -------
-</child>
+</object>
 
 // ...
 ```
 
-Not to belabor the point, but that's 6 lines for the bare minimum of a label. If we look at some GtkUI code...
+Not to belabor the point, but that's a lot of code for the most basic of labels. If we look at some GtkUI code...
 
 ```scss
 // ...
@@ -96,11 +101,13 @@ GtkBox {
 
   GtkLabel("My Second Label")
     .visible(true)
-
-  // -------
 }
 
 // ...
 ```
 
 its easily readable and efficient with space.
+
+### Where is this project at?
+
+Right now, it is currently in development. At the time of writing this, I recently implemented inheritence into the language (for the most part), which means I can start to write a few libraries. Not exactly sure about the time frame for that, but once they are written, this project will enter its version 1.0 (maybe), so stay tuned ladies and gentlemen!
