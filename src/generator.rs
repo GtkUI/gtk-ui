@@ -2,7 +2,8 @@ use super::parser::{
     Statement,
     StatementValue,
     DefinitionType,
-    Setter
+    Setter,
+    Definition
 };
 use super::lexer::{
     DefinitionType as TokenDefinitionType,
@@ -64,13 +65,13 @@ impl Generator {
                             return Ok(result);
                         }
                     } else {
-                        return Err((format!("Cannot inherit collective definition '{}'", definition_name), definition.position))
+                        return Err((format!("cannot inherit collective definition '{}'", definition_name), definition.position))
                     }
                 } else {
-                    return Err((format!("Inherited undefined definition '{}'", definition_name), definition.position))
+                    return Err((format!("inherited undefined definition '{}'", definition_name), definition.position))
                 }
-            };
-            return Err((format!("No such property on '{}' called '{}'", definition_name, setter.name.as_str()), setter.position));
+            }
+            return Err((format!("no such property on '{}' called '{}'", definition_name, setter.name.as_str()), setter.position));
         }
     }
 
@@ -187,9 +188,12 @@ impl Generator {
         Ok(result)
     }
 
-    pub fn generate_from_raw(properties: &Vec<Statement>, inherits: &Vec<String>, position: &Position) -> Result<CachedRawDefinition, (String, Position)> {
+    pub fn generate_from_raw(&self, definition: &Definition, position: &Position) -> Result<CachedRawDefinition, (String, Position)> {
         let mut props: HashMap<String, (TokenTypeIdentifierType, TokenDefinitionType)> = HashMap::new();
         let mut args: Vec<(String, TokenTypeIdentifierType, TokenDefinitionType)> = Vec::new();
+
+        let properties = &definition.children;
+        let inherits = &definition.inherits;
 
         for property in properties {
             if let StatementValue::Property(property_value) = &property.value {
@@ -202,6 +206,16 @@ impl Generator {
                     },
                     _ => return Err((format!("expected a property definition, found {}", property_value.definition_type.to_string()), property.position))
                 }
+            }
+        }
+
+        for parent_name in inherits {
+            if let Some(parent) = self.definitions.get(parent_name) {
+                if let CachedDefinition::Collective(_) = parent {
+                    return Err((format!("cannot inherit collective definition '{}'", parent_name), position.clone()))
+                }
+            } else {
+                return Err((format!("'{}' cannot inherit undefined definition '{}'", definition.name, parent_name), position.clone()));
             }
         }
 
@@ -243,7 +257,7 @@ impl Generator {
                             }
                         },
                         DefinitionType::Raw => {
-                            match Generator::generate_from_raw(&definition.children, &definition.inherits, &statement.position) {
+                            match self.generate_from_raw(&definition, &statement.position) {
                                 Ok(raw) => {
                                     self.definitions.insert(definition.name.clone(), CachedDefinition::Raw(raw));
                                 },
