@@ -34,7 +34,7 @@ pub enum IdentifierType {
 #[derive(Debug, Clone)]
 pub enum TokenValue {
     String(String),             // "mystring"
-    Number(i32),                // 0123456789
+    Number(f32),                // 0123456789
     Bool(i32),                  // true, false
     Definition(DefinitionType), // @mydefinition
     Directive(DirectiveType),   // #mydirective
@@ -267,7 +267,7 @@ impl Lexer {
         let mut number = String::new();
         let position = self.position.clone();
         for c in self.input[self.index..].chars() {
-            if ! c.is_digit(10) {
+            if ! c.is_digit(10) && c != '.' {
                 break
             }
             number.push(c);
@@ -275,7 +275,7 @@ impl Lexer {
 
         self.move_forward_n(number.len());
 
-        match number.parse::<i32>() {
+        match number.parse::<f32>() {
             Ok(num) =>
                 Ok(Token {
                     value: TokenValue::Number(num),
