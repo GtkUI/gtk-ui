@@ -108,6 +108,3 @@ GtkBox {
 
 its easily readable and efficient with space.
 
-### Where is this project at?
-
-Right now, it is currently in development. At the time of writing this, I recently implemented inheritence into the language (for the most part), which means I can start to write a few libraries. Not exactly sure about the time frame for that, but once they are written, this project will enter its version 1.0 (maybe), so stay tuned ladies and gentlemen!
