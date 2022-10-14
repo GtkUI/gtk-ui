@@ -1,4 +1,4 @@
-#include "gtk-4.0"
+#include "./libs/gtk-4.0.gui"
 
 @root {
   GtkWindow {

@@ -10,7 +10,7 @@ use super::parser::{
 use super::util::check_error;
 use std::fs;
 
-const LIB_PATH: &str =  "./libs";
+const LIB_PATH: &str =  "/usr/share/gtkui/";
 
 fn path_exists(path: &String) -> bool {
     fs::metadata(path).is_ok()
