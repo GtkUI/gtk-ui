@@ -384,7 +384,7 @@ impl Lexer {
                         self.move_foward();
                         continue
                     },
-                    ' '                 => {
+                    ' ' | '\t'          => {
                         self.move_foward();
                         continue
                     },
