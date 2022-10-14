@@ -1,0 +1,3 @@
+[submodule "examples/libs"]
+	path = examples/libs
+	url = https://github.com/GtkUI/libraries
