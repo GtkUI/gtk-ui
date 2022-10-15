@@ -2,6 +2,9 @@
 name = "gtk-ui"
 version = "0.1.0"
 edition = "2021"
+license = "GPL3"
+description = "The transpiler for GtkUI."
+homepage = "https://github.com/GtkUI/gtk-ui"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
