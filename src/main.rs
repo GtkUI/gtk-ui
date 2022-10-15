@@ -2,18 +2,11 @@ use std::fs;
 use std::env;
 use std::process;
 
-mod macros;
-mod lexer;
-mod parser;
-mod preprocessor;
-mod generator;
-mod util;
-
-use lexer::Lexer;
-use parser::Parser;
-use preprocessor::Preprocessor;
-use generator::Generator;
-use util::check_error;
+use gtk_ui::lexer::Lexer;
+use gtk_ui::parser::Parser;
+use gtk_ui::preprocessor::Preprocessor;
+use gtk_ui::generator::Generator;
+use gtk_ui::util::check_error;
 
 fn print_help() {
     println!("Usage: gtk-ui [FILENAME]");
