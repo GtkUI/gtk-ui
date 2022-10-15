@@ -6,7 +6,5 @@ license = "GPL-3.0"
 description = "The transpiler for GtkUI."
 homepage = "https://github.com/GtkUI/gtk-ui"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 unescape = "0.1.0"
