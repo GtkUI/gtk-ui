@@ -1,13 +1,35 @@
-use super::lexer::Position;
+use std::ops::Range;
 
-pub fn check_error(result: Result<(), (String, Position)>) {
-    if let Err(e) = result {
-        if e.1.line == -1 {
-            println!("\x1b[1;31mError:\x1b[0m {}", e.0);
+pub fn check_error(result: Result<(), (String, Range<usize>)>, file: &String, file_content: &String) {
+    if let Err(err) = result {
+        if err.1.start > err.1.end {
+            println!("\x1b[1;31mError:\x1b[0m {} (in {})", err.0, file);
         } else {
-            println!("\x1b[1;31mError:\x1b[0m {} (line {}, char {})", e.0, e.1.line, e.1.character);
+            match get_position_from_char_index(err.1.start, file_content) {
+                Ok((line, char)) => {
+                    println!("\x1b[1;31mError:\x1b[0m {} (line {}, char {}, in {})", err.0, line, char, file);
+                },
+                Err(message) => println!("\x1b[1;31mError:\x1b[0m {}", message)
+            }
         }
         std::process::exit(1);
     }
 }
 
+pub fn get_position_from_char_index(char_index: usize, file_content: &String) -> Result<(usize, usize), &str> {
+    // Quick sanity check
+    if char_index >= file_content.len() {
+        Err("character index bigger than file content (something horrible must have gone wrong)")
+    } else {
+        let mut line_count = 1;
+        let mut char_count = 1;
+        for i in 0..char_index {
+            char_count += 1;
+            if file_content.chars().nth(i).unwrap() == '\n' {
+                line_count += 1;
+                char_count = 1;
+            }
+        }
+        Ok((line_count, char_count))
+    }
+}

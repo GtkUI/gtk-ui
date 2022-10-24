@@ -1,6 +1,5 @@
 use super::lexer::{
     Lexer,
-    Position
 };
 use super::parser::{
     Parser,
@@ -9,6 +8,7 @@ use super::parser::{
 };
 use super::util::check_error;
 use std::fs;
+use std::ops::Range;
 
 const LIB_PATH: &str =  "/usr/share/gtk-ui/";
 
@@ -27,7 +27,7 @@ pub struct Preprocessor {
 impl Preprocessor { 
 
     // Pubs
-    pub fn preprocess(&mut self, input: Vec<Statement>, included_files: Vec<String>) -> Result<(), (String, Position)> {
+    pub fn preprocess(&mut self, input: Vec<Statement>, included_files: Vec<String>) -> Result<(), (String, Range<usize>)> {
         for statement in input {
             match statement.value {
                 StatementValue::Include(path) => {
@@ -42,17 +42,17 @@ impl Preprocessor {
                         file_content = fs::read_to_string(&path).expect("could not read included file");
                         file_path = path;
                     } else {
-                        return Err((format!("could not find file '{}' in lib directory or current working directory", path), Position { character: -1, line: -1 }));
+                        return Err((format!("could not find file '{}' in lib directory or current working directory", path), (1..0)));
                     }
 
                     if included_files.iter().any(|n| n == &file_path) {
-                        return Err((format!("recursive include of '{}'", file_path), Position { character: -1, line: -1 }));
+                        return Err((format!("recursive include of '{}'", file_path), (1..0)));
                     }
                 
-                    let mut lexer = Lexer::new(file_content);
-                    check_error(lexer.lex());
+                    let mut lexer = Lexer::new(file_content.clone());
+                    check_error(lexer.lex(), &file_path, &file_content);
                     let mut parser = Parser::new(lexer.tokens, included_files.last().unwrap().clone());
-                    check_error(parser.parse());
+                    check_error(parser.parse(), &file_path, &file_content);
 
                     let mut included_files = included_files.clone();
                     included_files.push(file_path);

@@ -1,13 +1,13 @@
 use super::lexer::{
     Token,
     TokenValue,
-    Position,
     DefinitionType as TokenDefinitionType,
     DirectiveType as TokenDirectiveType,
     IdentifierType as TokenIdentifierType,
     TypeIdentifierType as TokenTypeIdentifierType
 };
 use std::path::Path;
+use std::ops::Range;
 
 // Statement
 
@@ -37,7 +37,7 @@ pub struct Definition {
 pub struct Setter {
     pub name: String,
     pub value: Token,
-    pub position: Position
+    pub range: Range<usize>
 }
 
 #[derive(Debug, Clone)]
@@ -60,7 +60,7 @@ pub enum StatementValue {
 #[derive(Debug, Clone)]
 pub struct Statement {
     pub value: StatementValue,
-    pub position: Position
+    pub range: Range<usize>
 }
 
 impl Statement {
@@ -87,14 +87,13 @@ pub struct Parser {
 impl Parser {
     // Parsing Functions
 
-    fn block(&mut self) -> Result<(Vec<Statement>, Position), (String, Position)> {
-        let token = &self.tokens[self.index];
-        let position = token.position.clone();
+    fn block(&mut self) -> Result<(Vec<Statement>, Range<usize>), (String, Range<usize>)> {
+        let token = &self.tokens[self.index].clone();
         if let TokenValue::StartBlock = token.value {
             self.index += 1;
             let mut statements = Vec::new();
             loop {
-                let token = &self.tokens[self.index];
+                let token = &self.tokens[self.index].clone();
                 if let TokenValue::EndBlock = token.value {
                     self.index += 1;
                     break;
@@ -103,21 +102,20 @@ impl Parser {
                     Ok(statement) => {
                         match &statement.value {
                             StatementValue::Property(_) | StatementValue::Object(_) => statements.push(statement),
-                            _ => return Err((format!("found {} inside block. Only properties and objects are allowed here.", statement.to_string()), statement.position)),
+                            _ => return Err((format!("found {} inside block. Only properties and objects are allowed here.", statement.to_string()), statement.range)),
                         }
                     },
                     Err(err) => return Err(err)
                 }
             }
-            Ok(( statements, position ))
+            Ok(( statements, token.range.clone() ))
         } else {
-            Err((format!("expected the start of a block, got {}", token.to_string()), token.position))
+            Err((format!("expected the start of a block, got {}", token.to_string()), token.range.clone()))
         }
     }
 
-    fn arglist(&mut self) -> Result<(Vec<Token>, Position), (String, Position)> {
+    fn arglist(&mut self) -> Result<(Vec<Token>, Range<usize>), (String, Range<usize>)> {
         let token = &self.tokens[self.index];
-        let position = token.position.clone();
         if let TokenValue::StartArgList = token.value {
             let mut args: Vec<Token> = Vec::new();
             loop {
@@ -133,7 +131,7 @@ impl Parser {
                         // }
                         args.push(token.clone())
                     },
-                    _ => return Err((format!("found {}, expected Number, String, Bool, or type identifier", token.to_string()), token.position))
+                    _ => return Err((format!("found {}, expected Number, String, Bool, or type identifier", token.to_string()), token.range.clone()))
                 }
 
                 self.index += 1;
@@ -141,17 +139,17 @@ impl Parser {
                 match token.value {
                     TokenValue::ArgListDeliminator => continue,
                     TokenValue::EndArgList => break,
-                    _ => return Err((format!("found '{}', expected ','", token.to_string()), token.position))
+                    _ => return Err((format!("found '{}', expected ','", token.to_string()), token.range.clone()))
                 }
             }
             self.index += 1;
-            Ok(( args, position ))
+            Ok(( args, token.range.clone() ))
         } else {
-            Err((format!("expected start of argument list, found {}", token.to_string()), token.position))
+            Err((format!("expected start of argument list, found {}", token.to_string()), token.range.clone()))
         }
     }
 
-    fn definition(&mut self, definition_type: TokenDefinitionType, position: Position) -> Result<Statement, (String, Position)> {
+    fn definition(&mut self, definition_type: TokenDefinitionType, range: Range<usize>) -> Result<Statement, (String, Range<usize>)> {
         self.index += 1;
         if let TokenDefinitionType::Object(name) = definition_type {
             let token = &self.tokens[self.index];
@@ -183,10 +181,10 @@ impl Parser {
                             inherits.push(parent.clone());
                             self.index += 1;
                         },
-                        _ => return Err((format!("expected an argument list or definition identifier, found {}", token.to_string()), token.position.clone()))
+                        _ => return Err((format!("expected an argument list or definition identifier, found {}", token.to_string()), token.range.clone()))
                     }
                 },
-                _ => return Err((format!("expected a '->' or '{{', found '{}'", token.to_string()), token.position.clone()))
+                _ => return Err((format!("expected a '->' or '{{', found '{}'", token.to_string()), token.range.clone()))
             }
             match self.block() {
                 Ok(block) => {
@@ -214,7 +212,7 @@ impl Parser {
 
                     Ok(Statement {
                         value: StatementValue::Definition(definition),
-                        position: position.clone()
+                        range: range.clone()
                     })
                 },
                 Err(err) => return Err(err)
@@ -237,13 +235,13 @@ impl Parser {
                             };
                             Ok(Statement {
                                 value: StatementValue::Property(property),
-                                position: position.clone()
+                                range: range.clone()
                             })
                         } else {
-                            return Err((format!("expected type identifier, found {}", internal_type.to_string()), internal_type.position));
+                            return Err((format!("expected type identifier, found {}", internal_type.to_string()), internal_type.range.clone()));
                         }
                     } else {
-                        return Err((format!("expected String, found {}", name.to_string()), name.position));
+                        return Err((format!("expected String, found {}", name.to_string()), name.range.clone()));
                     }
                 },
                 Err(err) => return Err(err)
@@ -251,7 +249,7 @@ impl Parser {
         }
     }
 
-    fn directive(&mut self, directive_type: TokenDirectiveType, position: Position) -> Result<Statement, (String, Position)> {
+    fn directive(&mut self, directive_type: TokenDirectiveType, range: Range<usize>) -> Result<Statement, (String, Range<usize>)> {
         self.index += 1;
         let directive_argument_token = &self.tokens[self.index];
         if let TokenValue::String(arg) = &directive_argument_token.value {
@@ -266,14 +264,14 @@ impl Parser {
             };
             Ok(Statement {
                 value,
-                position: position.clone()
+                range: range.clone()
             })
         } else {
-            Err((format!("expected string, found {}", directive_argument_token.to_string()), directive_argument_token.position))
+            Err((format!("expected string, found {}", directive_argument_token.to_string()), directive_argument_token.range.clone()))
         }
     }
 
-    fn object(&mut self, identifier_type: TokenIdentifierType, position: Position) -> Result<Statement, (String, Position)> {
+    fn object(&mut self, identifier_type: TokenIdentifierType, range: Range<usize>) -> Result<Statement, (String, Range<usize>)> {
         if let TokenIdentifierType::Generic(name) = identifier_type {
             self.index += 1;
             let token = &self.tokens[self.index];
@@ -303,7 +301,7 @@ impl Parser {
                         Err(e) => return Err(e)
                     }
                 },
-                _ => return Err((format!("expected the start of an argument list or block, found '{}'", token.to_string()), token.position))
+                _ => return Err((format!("expected the start of an argument list or block, found '{}'", token.to_string()), token.range.clone()))
             }
 
             loop {
@@ -328,17 +326,17 @@ impl Parser {
                                         setters.push(Setter {
                                             name: name,
                                             value: value.clone(),
-                                            position: token.position
+                                            range: token.range
                                         })
                                     },
-                                    _ => return Err((format!("expected Number, String, or Bool, found {}", value.to_string()), value.position))
+                                    _ => return Err((format!("expected Number, String, or Bool, found {}", value.to_string()), value.range.clone()))
                                 }
                             },
                             Err(err) => return Err(err)
                         }
                     },
                     _ => {
-                        return Err((format!("expected setter, found {}", token.to_string()), token.position));
+                        return Err((format!("expected setter, found {}", token.to_string()), token.range));
                     }
                 }
             }
@@ -352,29 +350,29 @@ impl Parser {
 
             Ok(Statement {
                 value: StatementValue::Object(object),
-                position: position.clone()
+                range: range.clone()
             })
         } else {
-            Err((format!("expected generic identifier, found type identifier"), position))
+            Err((format!("expected generic identifier, found type identifier"), range))
         }
     }
 
-    fn parse_statement(&mut self) -> Result<Statement, (String, Position)> {
+    fn parse_statement(&mut self) -> Result<Statement, (String, Range<usize>)> {
         let token = &self.tokens[self.index];
         match &token.value {
             TokenValue::Definition(definition) => {
                 let definition = definition.clone();
-                self.definition(definition, token.position)
+                self.definition(definition, token.range.clone())
             },
             TokenValue::Directive(directive) => {
                 let directive = directive.clone();
-                self.directive(directive, token.position)
+                self.directive(directive, token.range.clone())
             },
             TokenValue::Identifier(identifier) => {
                 let identifier = identifier.clone();
-                self.object(identifier, token.position)
+                self.object(identifier, token.range.clone())
             },
-            _ => Err(( format!("unexpected {}", token.to_string()), token.position ))
+            _ => Err(( format!("unexpected {}", token.to_string()), token.range.clone() ))
         }
     }
 
@@ -388,7 +386,7 @@ impl Parser {
         }
     }
 
-    pub fn parse(&mut self) -> Result<(), (String, Position)> {
+    pub fn parse(&mut self) -> Result<(), (String, Range<usize>)> {
         loop {
             if self.index >= self.tokens.len() {
                 break Ok(())
@@ -397,7 +395,7 @@ impl Parser {
                 Ok(statement) => {
                     match &statement.value {
                         StatementValue::Definition(_) | StatementValue::Header(_) | StatementValue::Include(_) => self.statements.push(statement),
-                        _ => return Err(( format!("found {} on top level. Only object definitions and directives are allowed here.", statement.to_string()), statement.position )),
+                        _ => return Err(( format!("found {} on top level. Only object definitions and directives are allowed here.", statement.to_string()), statement.range )),
                     }
                 },
                 Err(err) => return Err(err)

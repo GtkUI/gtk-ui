@@ -10,18 +10,18 @@ use super::lexer::{
     TypeIdentifierType as TokenTypeIdentifierType,
     Token,
     TokenValue,
-    Position
 };
 use std::fs::File;
 use std::io::Write;
 use std::collections::HashMap;
+use std::ops::Range;
 
 #[derive(Debug)]
 pub struct CachedRawDefinition {
     props: HashMap<String, (TokenTypeIdentifierType, TokenDefinitionType)>,
     args: Vec<(String, TokenTypeIdentifierType, TokenDefinitionType)>,
     inherits: Vec<String>,
-    position: Position
+    range: Range<usize>
 }
 
 #[derive(Debug)]
@@ -39,7 +39,7 @@ pub struct Generator {
 
 impl Generator {
 
-    fn is_valid_type(token: &Token, expected_type: &TokenTypeIdentifierType) -> Result<bool, (String, Position)> {
+    fn is_valid_type(token: &Token, expected_type: &TokenTypeIdentifierType) -> Result<bool, (String, Range<usize>)> {
         match token.value {
             TokenValue::Bool(_) => {
                 Ok(matches!(expected_type, TokenTypeIdentifierType::Bool))
@@ -50,11 +50,11 @@ impl Generator {
             TokenValue::String(_) => {
                 Ok(matches!(expected_type, TokenTypeIdentifierType::String))
             },
-            _ => Err((format!("{} is not a primitive and therefore it's type cannot be checked", token.to_string()), token.position))
+            _ => Err((format!("{} is not a primitive and therefore it's type cannot be checked", token.to_string()), token.range.clone()))
         }
     }
 
-    fn get_prop_from_definition(&self, definition: &CachedRawDefinition, definition_name: &String, setter: &Setter) -> Result<(TokenTypeIdentifierType, TokenDefinitionType), (String, Position)> {
+    fn get_prop_from_definition(&self, definition: &CachedRawDefinition, definition_name: &String, setter: &Setter) -> Result<(TokenTypeIdentifierType, TokenDefinitionType), (String, Range<usize>)> {
         if let Some(prop) = definition.props.get(setter.name.as_str()) {
             Ok(prop.clone())
         } else {
@@ -65,17 +65,17 @@ impl Generator {
                             return Ok(result);
                         }
                     } else {
-                        return Err((format!("cannot inherit collective definition '{}'", definition_name), definition.position))
+                        return Err((format!("cannot inherit collective definition '{}'", definition_name), definition.range.clone()))
                     }
                 } else {
-                    return Err((format!("inherited undefined definition '{}'", definition_name), definition.position))
+                    return Err((format!("inherited undefined definition '{}'", definition_name), definition.range.clone()))
                 }
             }
-            return Err((format!("no such property on '{}' called '{}'", definition_name, setter.name.as_str()), setter.position));
+            return Err((format!("no such property on '{}' called '{}'", definition_name, setter.name.as_str()), setter.range.clone()));
         }
     }
 
-    pub fn generate_from_collective(&self, children: &Vec<Statement>) -> Result<String, (String, Position)> {
+    pub fn generate_from_collective(&self, children: &Vec<Statement>) -> Result<String, (String, Range<usize>)> {
         let mut result = String::new();
 
         for child in children {
@@ -85,7 +85,7 @@ impl Generator {
                         match definition {
                             CachedDefinition::Raw(definition) => {
                                 if definition.args.len() != object.arguments.len() {
-                                    return Err((format!("the '{}' definition expects {} args, {} given", object.name, definition.args.len(), object.arguments.len()), child.position));
+                                    return Err((format!("the '{}' definition expects {} args, {} given", object.name, definition.args.len(), object.arguments.len()), child.range.clone()));
                                 }
 
                                 let mut inlines: Vec<(String, String)> = Vec::new();
@@ -105,7 +105,7 @@ impl Generator {
                                                 TokenDefinitionType::ChildArg => {
                                                     children.push((defined_arg.0.clone(), actual_arg.value_to_string()));
                                                 },
-                                                _ => return Err((format!("expected either an InlineArg or a ChildArg, got {}", defined_arg.2.to_string()), actual_arg.position))
+                                                _ => return Err((format!("expected either an InlineArg or a ChildArg, got {}", defined_arg.2.to_string()), actual_arg.range.clone()))
                                             }
                                         }
                                     }
@@ -127,7 +127,7 @@ impl Generator {
                                                         TokenDefinitionType::ChildProp => {
                                                             children.push((setter.name.clone(), actual_prop.value_to_string()));
                                                         },
-                                                        _ => return Err((format!("expected either an InlineArg or a ChildArg, got {}", defined_prop.1.to_string()), actual_prop.position))
+                                                        _ => return Err((format!("expected either an InlineArg or a ChildArg, got {}", defined_prop.1.to_string()), actual_prop.range.clone()))
                                                     }
                                                 }
                                             }
@@ -180,7 +180,7 @@ impl Generator {
 
                     }
                 },
-                _ => return Err((format!("found {}, expected object in collective definition", child.to_string()), child.position))
+                _ => return Err((format!("found {}, expected object in collective definition", child.to_string()), child.range.clone()))
             }
         }
         
@@ -188,7 +188,7 @@ impl Generator {
         Ok(result)
     }
 
-    pub fn generate_from_raw(&self, definition: &Definition, position: &Position) -> Result<CachedRawDefinition, (String, Position)> {
+    pub fn generate_from_raw(&self, definition: &Definition, range: Range<usize>) -> Result<CachedRawDefinition, (String, Range<usize>)> {
         let mut props: HashMap<String, (TokenTypeIdentifierType, TokenDefinitionType)> = HashMap::new();
         let mut args: Vec<(String, TokenTypeIdentifierType, TokenDefinitionType)> = Vec::new();
 
@@ -204,7 +204,7 @@ impl Generator {
                     TokenDefinitionType::InlineArg | TokenDefinitionType::ChildArg => {
                         args.push((property_value.name.clone(), property_value.internal_type.clone(), property_value.definition_type.clone()));
                     },
-                    _ => return Err((format!("expected a property definition, found {}", property_value.definition_type.to_string()), property.position))
+                    _ => return Err((format!("expected a property definition, found {}", property_value.definition_type.to_string()), property.range.clone()))
                 }
             }
         }
@@ -212,22 +212,21 @@ impl Generator {
         for parent_name in inherits {
             if let Some(parent) = self.definitions.get(parent_name) {
                 if let CachedDefinition::Collective(_) = parent {
-                    return Err((format!("cannot inherit collective definition '{}'", parent_name), position.clone()))
+                    return Err((format!("cannot inherit collective definition '{}'", parent_name), range))
                 }
             } else {
-                return Err((format!("'{}' cannot inherit undefined definition '{}'", definition.name, parent_name), position.clone()));
+                return Err((format!("'{}' cannot inherit undefined definition '{}'", definition.name, parent_name), range));
             }
         }
 
         Ok(CachedRawDefinition {
             inherits: inherits.clone(),
-            position: position.clone(),
-            props, args
+            range, props, args
         })
     }
     
     // Pubs
-    pub fn generate(&mut self) -> Result<(), (String, Position)> {
+    pub fn generate(&mut self) -> Result<(), (String, Range<usize>)> {
         for statement in &self.statements {
             match &statement.value {
                 StatementValue::Definition(definition) => {
@@ -257,7 +256,7 @@ impl Generator {
                             }
                         },
                         DefinitionType::Raw => {
-                            match self.generate_from_raw(&definition, &statement.position) {
+                            match self.generate_from_raw(&definition, statement.range.clone()) {
                                 Ok(raw) => {
                                     self.definitions.insert(definition.name.clone(), CachedDefinition::Raw(raw));
                                 },
@@ -270,7 +269,7 @@ impl Generator {
                     self.header.push_str(header);
                     self.header.push('\n');
                 },
-                _ => return Err((format!("this should never ever ever ever ever happen. something must be wrong with the parser if this does happen"), statement.position))
+                _ => return Err((format!("this should never ever ever ever ever happen. something must be wrong with the parser if this does happen"), statement.range.clone()))
             }
         }
         Ok(())

@@ -24,15 +24,15 @@ fn main() {
     let file_content = fs::read_to_string(filename)
         .expect("Something went wrong while trying to read the file");
     
-    let mut lexer = Lexer::new(file_content);
-    check_error(lexer.lex());
+    let mut lexer = Lexer::new(file_content.clone());
+    check_error(lexer.lex(), filename, &file_content);
     
     let mut parser = Parser::new(lexer.tokens, filename.clone());
-    check_error(parser.parse());
+    check_error(parser.parse(), filename, &file_content);
 
     let mut preprocessor = Preprocessor::new();
-    check_error(preprocessor.preprocess(parser.statements, vec![filename.clone()]));
+    check_error(preprocessor.preprocess(parser.statements, vec![filename.clone()]), filename, &file_content);
     
     let mut generator = Generator::new(preprocessor.statements);
-    check_error(generator.generate());
+    check_error(generator.generate(), filename, &file_content);
 }

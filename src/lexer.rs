@@ -1,6 +1,7 @@
 // Crates
 
 use unescape::unescape;
+use std::ops::Range;
 use super::{
     name_range,
     start_name_range
@@ -55,16 +56,10 @@ pub enum TokenValue {
 #[derive(Debug, Clone)]
 pub struct Token {
     pub value: TokenValue,
-    pub position: Position
+    pub range: Range<usize>
 }
 
 // Position
-
-#[derive(Debug,Clone,Copy)]
-pub struct Position {
-    pub line: i32,
-    pub character: i32
-}
 
 impl Token {
     pub fn to_string(&self) -> &str {
@@ -150,7 +145,6 @@ pub struct Lexer {
     pub tokens: Vec<Token>,
     index: usize,
     input: String,
-    position: Position
 }
 
 impl Lexer {
@@ -160,20 +154,18 @@ impl Lexer {
     #[inline]
     fn move_foward(&mut self) {
         self.index += 1;
-        self.position.character += 1;
     }
 
     #[inline]
     fn move_forward_n(&mut self, n: usize) {
         self.index += n;
-        self.position.character += n as i32;
     }
 
     // Lexing Functions
 
-    fn definition(&mut self) -> Result<Token, (String, Position)> {
+    fn definition(&mut self) -> Result<Token, (String, Range<usize>)> {
         let mut definition = String::new();
-        let position = self.position.clone();
+        let start_position = self.index.clone();
         self.move_foward();
         for c in self.input[self.index..].chars() {
             match c {
@@ -187,13 +179,13 @@ impl Lexer {
         self.move_forward_n(definition.len());
         Ok(Token {
             value: DefinitionType::from(&definition),
-            position
+            range: (start_position..self.index)
         })
     }
 
-    fn directive(&mut self) -> Result<Token, (String, Position)> {
+    fn directive(&mut self) -> Result<Token, (String, Range<usize>)> {
         let mut directive = String::new();
-        let position = self.position.clone();
+        let start_position = self.index.clone();
         self.move_foward();
         for c in self.input[self.index..].chars() {
             match c {
@@ -207,13 +199,13 @@ impl Lexer {
         self.move_forward_n(directive.len());
         Ok(Token {
             value: DirectiveType::from(&directive),
-            position
+            range: (start_position..self.index)
         })
     }
 
-    fn string(&mut self) -> Result<Token, (String, Position)> {
+    fn string(&mut self) -> Result<Token, (String, Range<usize>)> {
         let mut string = String::new();
-        let position = self.position.clone();
+        let start_position = self.index.clone();
         self.move_foward();
         loop {
             let c = self.input.chars().nth(self.index).unwrap();
@@ -228,7 +220,7 @@ impl Lexer {
                     break
                 },
                 '\n' => {
-                    return Err(( String::from("unexpected end of string input"), self.position.clone() ));
+                    return Err(( String::from("unexpected end of string input"), (self.index..self.index) ));
                 },
                 _ => {
                     self.move_foward();
@@ -241,15 +233,15 @@ impl Lexer {
             Some(string) =>
                 Ok(Token {
                     value: TokenValue::String(string),
-                    position
+                    range: (start_position..self.index)
                 }),
-            None => Err(( String::from("unable to escape string"), self.position.clone() ))
+            None => Err(( String::from("unable to escape string"), (start_position..self.index) ))
         }
     }
 
-    fn setter(&mut self) -> Result<Token, (String, Position)> {
+    fn setter(&mut self) -> Result<Token, (String, Range<usize>)> {
         let mut setter = String::new();
-        let position = self.position.clone();
+        let start_position = self.index.clone();
         self.move_foward();
         for c in self.input[self.index..].chars() {
             match c {
@@ -263,13 +255,13 @@ impl Lexer {
         self.move_forward_n(setter.len());
         Ok(Token {
             value: TokenValue::Setter(setter),
-            position
+            range: (start_position..self.index)
         })
     }
 
-    fn number(&mut self) -> Result<Token, (String, Position)> {
+    fn number(&mut self) -> Result<Token, (String, Range<usize>)> {
         let mut number = String::new();
-        let position = self.position.clone();
+        let start_position = self.index.clone();
         for c in self.input[self.index..].chars() {
             if ! c.is_digit(10) && c != '.' {
                 break
@@ -283,16 +275,16 @@ impl Lexer {
             Ok(num) =>
                 Ok(Token {
                     value: TokenValue::Number(num),
-                    position
+                    range: (start_position..self.index)
                 }),
-            Err(e) => Err((e.to_string(), self.position.clone()))
+            Err(e) => Err((e.to_string(), (start_position..self.index)))
         }
     }
 
     // TODO: Rename this function to include its use with parsing booleans
-    fn identifier(&mut self) -> Result<Token, (String, Position)> {
+    fn identifier(&mut self) -> Result<Token, (String, Range<usize>)> {
         let mut identifier = String::new();
-        let position = self.position.clone();
+        let start_position = self.index.clone();
         for c in self.input[self.index..].chars() {
             match c {
                 name_range!() => {
@@ -315,16 +307,15 @@ impl Lexer {
 
         Ok(Token {
             value,
-            position
+            range: (start_position..self.index)
         })
     }
 
-    fn add_and_move(&mut self, value: TokenValue) -> Result<Token, (String, Position)> {
-        let position = self.position.clone();
+    fn add_and_move(&mut self, value: TokenValue) -> Result<Token, (String, Range<usize>)> {
         self.move_foward();
-        Ok(Token{
+        Ok(Token {
             value,
-            position
+            range: ((self.index - 1)..self.index)
         })
     }
 
@@ -342,17 +333,20 @@ impl Lexer {
         }
     }
 
-    fn inherits(&mut self) -> Result<Token, (String, Position)> {
-        let position = self.position.clone();
+    fn inherits(&mut self) -> Result<Token, (String, Range<usize>)> {
         self.move_foward();
-        if self.input.chars().nth(self.index).unwrap() == '>' {
-            self.move_foward();
-            Ok(Token {
-                value: TokenValue::Inherits,
-                position
-            })
+        if let Some(char) = self.input.chars().nth(self.index) {
+            if char == '>' {
+                self.move_foward();
+                Ok(Token {
+                    value: TokenValue::Inherits,
+                    range: ((self.index - 2)..self.index)
+                })
+            } else {
+                Err((format!("unrecognized character '{}'", char), (self.index..(self.index + 1))))
+            }
         } else {
-            Err((String::from("unrecognized character '-'"), self.position.clone()))
+            Err((format!("unexpected end of input"), (self.index..self.index)))
         }
     }
 
@@ -362,10 +356,9 @@ impl Lexer {
             tokens: Vec::new(),
             index: 0,
             input: s,
-            position: Position { line: 1, character: 1 }
         }
     }
-    pub fn lex(&mut self) -> Result<(), (String, Position)> {
+    pub fn lex(&mut self) -> Result<(), (String, Range<usize>)> {
         loop {
             let input_char = self.input.chars().nth(self.index);
             if let Some(c) = input_char {
@@ -382,13 +375,7 @@ impl Lexer {
                     ','                 => self.add_and_move(TokenValue::ArgListDeliminator),
                     '('                 => self.add_and_move(TokenValue::StartArgList),
                     ')'                 => self.add_and_move(TokenValue::EndArgList),
-                    '\n'                => {
-                        self.position.line += 1;
-                        self.position.character = 1;
-                        self.move_foward();
-                        continue
-                    },
-                    ' ' | '\t'          => {
+                    ' ' | '\t' | '\n'   => {
                         self.move_foward();
                         continue
                     },
@@ -396,7 +383,7 @@ impl Lexer {
                         self.comment();
                         continue
                     },
-                    _ => Err((format!("unrecognized character '{}'", c), self.position.clone())),
+                    _ => Err((format!("unrecognized character '{}'", c), (self.index..self.index))),
                 };
 
                 match token {
