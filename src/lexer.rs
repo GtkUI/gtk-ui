@@ -45,6 +45,7 @@ pub enum TokenValue {
     Directive(DirectiveType),   // #mydirective
     Setter(String),             // .mysetter
     Identifier(IdentifierType), // anything else
+    Comment,                    // //
     Inherits,                   // ->
     StartBlock,                 // { 
     EndBlock,                   // }
@@ -76,7 +77,8 @@ impl Token {
             TokenValue::StartArgList => "(",
             TokenValue::EndArgList => ")",
             TokenValue::ArgListDeliminator => ",",
-            TokenValue::Inherits => "->"
+            TokenValue::Inherits => "->",
+            TokenValue::Comment => "comment"
         }
     }
     
@@ -319,7 +321,8 @@ impl Lexer {
         })
     }
 
-    fn comment(&mut self) {
+    fn comment(&mut self) -> Result<Token, (String, Range<usize>)> {
+        let start_position = self.index.clone();
         loop {
             let c = self.input.chars().nth(self.index);
             if let Some(c) = c {
@@ -331,6 +334,10 @@ impl Lexer {
                 break;
             }
         }
+        return Ok(Token {
+            value: TokenValue::Comment,
+            range: (start_position..self.index)
+        })
     }
 
     fn inherits(&mut self) -> Result<Token, (String, Range<usize>)> {
@@ -358,7 +365,7 @@ impl Lexer {
             input: s,
         }
     }
-    pub fn lex(&mut self) -> Result<(), (String, Range<usize>)> {
+    pub fn lex(&mut self, lex_comments: bool) -> Result<(), (String, Range<usize>)> {
         loop {
             let input_char = self.input.chars().nth(self.index);
             if let Some(c) = input_char {
@@ -380,8 +387,12 @@ impl Lexer {
                         continue
                     },
                     '/'                 => {
-                        self.comment();
-                        continue
+                        let comment = self.comment();
+                        if lex_comments {
+                            comment
+                        } else {
+                            continue
+                        }
                     },
                     _ => Err((format!("unrecognized character '{}'", c), (self.index..self.index))),
                 };

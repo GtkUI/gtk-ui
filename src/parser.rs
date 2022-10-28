@@ -99,13 +99,18 @@ impl Parser {
                     break;
                 }
                 match self.parse_statement() {
-                    Ok(statement) => {
-                        match &statement.value {
-                            StatementValue::Property(_) | StatementValue::Object(_) => statements.push(statement),
-                            _ => return Err((format!("found {} inside block. Only properties and objects are allowed here.", statement.to_string()), statement.range)),
+                    Some(result) => {
+                        match result {
+                            Ok(statement) => {
+                                match &statement.value {
+                                    StatementValue::Property(_) | StatementValue::Object(_) => statements.push(statement),
+                                    _ => return Err((format!("found {} inside block. Only properties and objects are allowed here.", statement.to_string()), statement.range)),
+                                }
+                            },
+                            Err(err) => return Err(err)
                         }
-                    },
-                    Err(err) => return Err(err)
+                    }
+                    None => continue
                 }
             }
             Ok(( statements, token.range.clone() ))
@@ -357,22 +362,23 @@ impl Parser {
         }
     }
 
-    fn parse_statement(&mut self) -> Result<Statement, (String, Range<usize>)> {
+    fn parse_statement(&mut self) -> Option<Result<Statement, (String, Range<usize>)>> {
         let token = &self.tokens[self.index];
         match &token.value {
             TokenValue::Definition(definition) => {
                 let definition = definition.clone();
-                self.definition(definition, token.range.clone())
+                Some(self.definition(definition, token.range.clone()))
             },
             TokenValue::Directive(directive) => {
                 let directive = directive.clone();
-                self.directive(directive, token.range.clone())
+                Some(self.directive(directive, token.range.clone()))
             },
             TokenValue::Identifier(identifier) => {
                 let identifier = identifier.clone();
-                self.object(identifier, token.range.clone())
+                Some(self.object(identifier, token.range.clone()))
             },
-            _ => Err(( format!("unexpected {}", token.to_string()), token.range.clone() ))
+            TokenValue::Comment => None,
+            _ => Some(Err(( format!("unexpected {}", token.to_string()), token.range.clone() )))
         }
     }
 
@@ -392,13 +398,19 @@ impl Parser {
                 break Ok(())
             }
             match self.parse_statement() {
-                Ok(statement) => {
-                    match &statement.value {
-                        StatementValue::Definition(_) | StatementValue::Header(_) | StatementValue::Include(_) => self.statements.push(statement),
-                        _ => return Err(( format!("found {} on top level. Only object definitions and directives are allowed here.", statement.to_string()), statement.range )),
+                Some(result) => {
+                    match result {
+                        Ok(statement) => {
+                            
+                            match &statement.value {
+                                StatementValue::Definition(_) | StatementValue::Header(_) | StatementValue::Include(_) => self.statements.push(statement),
+                                _ => return Err(( format!("found {} on top level. Only object definitions and directives are allowed here.", statement.to_string()), statement.range )),
+                            }
+                        },
+                        Err(err) => return Err(err)
                     }
                 },
-                Err(err) => return Err(err)
+                None => continue
             }
         }
     }

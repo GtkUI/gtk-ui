@@ -25,7 +25,7 @@ fn main() {
         .expect("Something went wrong while trying to read the file");
     
     let mut lexer = Lexer::new(file_content.clone());
-    check_error(lexer.lex(), filename, &file_content);
+    check_error(lexer.lex(false), filename, &file_content);
     
     let mut parser = Parser::new(lexer.tokens, filename.clone());
     check_error(parser.parse(), filename, &file_content);

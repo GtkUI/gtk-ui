@@ -50,7 +50,7 @@ impl Preprocessor {
                     }
                 
                     let mut lexer = Lexer::new(file_content.clone());
-                    check_error(lexer.lex(), &file_path, &file_content);
+                    check_error(lexer.lex(false), &file_path, &file_content);
                     let mut parser = Parser::new(lexer.tokens, included_files.last().unwrap().clone());
                     check_error(parser.parse(), &file_path, &file_content);
 
