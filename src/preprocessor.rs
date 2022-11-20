@@ -6,15 +6,11 @@ use super::parser::{
     Statement,
     StatementValue
 };
-use super::util::check_error;
-use std::fs;
+use super::util::{check_error, get_include_path};
 use std::ops::Range;
+use std::fs;
+use std::error::Error;
 
-const LIB_PATH: &str =  "/usr/share/gtk-ui/";
-
-fn path_exists(path: &String) -> bool {
-    fs::metadata(path).is_ok()
-}
 
 // TODO: Warn about a file being included multiple times.
 // At the moment, regardless of where the library is included, if it is included twice, everything defined in the library is redefined
@@ -31,34 +27,29 @@ impl Preprocessor {
         for statement in input {
             match statement.value {
                 StatementValue::Include(path) => {
-                    let file_content;
-                    let file_path: String;
+                    if let Some(path) = get_include_path(&path) {
+                        match fs::read_to_string(&path) {
+                            Ok(content) => {
+                                if included_files.iter().any(|n| n == &path) {
+                                    return Err((format!("recursive include of '{}'", path), (1..0)));
+                                }
+                            
+                                let mut lexer = Lexer::new(content.clone());
+                                check_error(lexer.lex(false), &path, &content);
+                                let mut parser = Parser::new(lexer.tokens, included_files.last().unwrap().clone());
+                                check_error(parser.parse(), &path, &content);
 
-                    let lib_file_path = format!("{LIB_PATH}/{path}.gui");
-                    if path_exists(&lib_file_path) {
-                        file_content = fs::read_to_string(&lib_file_path).expect("could not read included file");
-                        file_path = lib_file_path;
-                    } else if path_exists(&path) {
-                        file_content = fs::read_to_string(&path).expect("could not read included file");
-                        file_path = path;
+                                let mut included_files = included_files.clone();
+                                included_files.push(path);
+
+                                if let Err(err) = self.preprocess(parser.statements, included_files) {
+                                    return Err(err);
+                                }
+                            },
+                            Err(err) => return Err((String::from(err.to_string()), 1..0))
+                        }
                     } else {
                         return Err((format!("could not find file '{}' in lib directory or current working directory", path), (1..0)));
-                    }
-
-                    if included_files.iter().any(|n| n == &file_path) {
-                        return Err((format!("recursive include of '{}'", file_path), (1..0)));
-                    }
-                
-                    let mut lexer = Lexer::new(file_content.clone());
-                    check_error(lexer.lex(false), &file_path, &file_content);
-                    let mut parser = Parser::new(lexer.tokens, included_files.last().unwrap().clone());
-                    check_error(parser.parse(), &file_path, &file_content);
-
-                    let mut included_files = included_files.clone();
-                    included_files.push(file_path);
-
-                    if let Err(err) = self.preprocess(parser.statements, included_files) {
-                        return Err(err);
                     }
                 },
                 _ => {

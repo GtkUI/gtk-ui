@@ -1,4 +1,7 @@
 use std::ops::Range;
+use std::fs;
+
+const LIB_PATH: &str =  "/usr/share/gtk-ui/";
 
 pub fn check_error(result: Result<(), (String, Range<usize>)>, file: &String, file_content: &String) {
     if let Err(err) = result {
@@ -31,5 +34,16 @@ pub fn get_position_from_char_index(char_index: usize, file_content: &String) ->
             }
         }
         Ok((line_count, char_count))
+    }
+}
+
+pub fn get_include_path(path: &String) -> Option<String> {
+    let lib_file_path = format!("{LIB_PATH}/{path}.gui");
+    if fs::metadata(&lib_file_path).is_ok() {
+        Some(lib_file_path)
+    } else if fs::metadata(&path).is_ok() {
+        Some(path.clone())
+    } else {
+        None
     }
 }
