@@ -1,7 +1,7 @@
 use std::ops::Range;
 use std::fs;
 
-const LIB_PATH: &str =  "/usr/share/gtk-ui/";
+const LIB_PATH: &str =  "/usr/share/gtk-ui";
 
 pub fn check_error(result: Result<(), (String, Range<usize>)>, file: &String, file_content: &String) {
     if let Err(err) = result {
