@@ -9,7 +9,6 @@ use super::parser::{
 use super::util::{check_error, get_include_path};
 use std::ops::Range;
 use std::fs;
-use std::error::Error;
 
 
 // TODO: Warn about a file being included multiple times.
