@@ -130,26 +130,27 @@ impl Parser {
                 let mut args: Vec<Token> = Vec::new();
                 loop {
                     self.index += 1;
-                    let token = &self.tokens[self.index];
-                    match &token.value {
-                        TokenValue::Number(_) | TokenValue::String(_) | TokenValue::Bool(_) => args.push(token.clone()),
-                        TokenValue::Identifier(_identifier) => {
-                            // if let TokenIdentifierType::Type(_) = identifier {
-                            //     args.push(token.clone())
-                            // } else {
-                            //     return Err((format!("found generic identifier, expected Number, String, Bool, or type identifier"), token.position));
-                            // }
-                            args.push(token.clone())
-                        },
-                        _ => return Err((format!("found {}, expected Number, String, Bool, or type identifier", token.to_string()), token.range.clone()))
-                    }
+                    if let Some(token) = self.tokens.get(self.index) {
+                        match &token.value {
+                            TokenValue::Number(_) | TokenValue::String(_) | TokenValue::Bool(_) => args.push(token.clone()),
+                            TokenValue::Identifier(_identifier) => {
+                                args.push(token.clone())
+                            },
+                            _ => return Err((format!("found {}, expected Number, String, Bool, or type identifier", token.to_string()), token.range.clone()))
+                        }
 
-                    self.index += 1;
-                    let token = &self.tokens[self.index];
-                    match token.value {
-                        TokenValue::ArgListDeliminator => continue,
-                        TokenValue::EndArgList => break,
-                        _ => return Err((format!("found '{}', expected ','", token.to_string()), token.range.clone()))
+                        self.index += 1;
+                        if let Some(token) = self.tokens.get(self.index) {
+                            match token.value {
+                                TokenValue::ArgListDeliminator => continue,
+                                TokenValue::EndArgList => break,
+                                _ => return Err((format!("found '{}', expected ','", token.to_string()), token.range.clone()))
+                            }
+                        } else {
+                            return Err((format!("expected ',', found nothing"), token.range.clone()));
+                        }
+                    } else {
+                        return Err((format!("expected Number, String, Bool, or type identifier, found nothing"), token.range.clone()));
                     }
                 }
                 self.index += 1;
